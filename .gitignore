@@ -1,0 +1,21 @@
+# Зависимости
+node_modules/
+package-lock.json
+
+# База данных
+data/
+*.sqlite
+*.sqlite3
+
+# Переменные окружения
+.env
+.env.local
+
+# Логи
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db

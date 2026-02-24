@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: student-bot
+    runtime: node
+    repo: https://github.com/mrmessir/studbot
+    plan: free
+    region: frankfurt
+    buildCommand: cd bot && npm install
+    startCommand: cd bot && node bot.js
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MINI_APP_URL
+        value: https://mrmessir.github.io/studbot

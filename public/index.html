@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🎓 Student Helper</title>
+    
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- CSS стили -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: #f8f9fa;
+            color: #1a1a1a;
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* Контейнер страниц */
+        .page {
+            display: none;
+            padding: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Навигация */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0 20px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+            border-top: 1px solid #e9ecef;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: #868e96;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
+        .nav-item.active {
+            color: #0d6efd;
+            background: #e7f5ff;
+        }
+
+        .nav-icon {
+            font-size: 24px;
+        }
+
+        /* Заголовки */
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #212529;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin: 20px 0 12px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        /* Карточки */
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 16px;
+            border: 1px solid #e9ecef;
+        }
+
+        /* Главная страница */
+        .greeting-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .avatar {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            box-shadow: 0 4px 12px rgba(13,110,253,0.3);
+        }
+
+        .greeting-text h2 {
+            margin: 0 0 4px;
+            font-size: 20px;
+        }
+
+        .greeting-text p {
+            color: #868e96;
+            font-size: 14px;
+        }
+
+        /* Прогресс */
+        .progress-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 16px;
+        }
+
+        .week-stats {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 16px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0d6efd;
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #868e96;
+        }
+
+        #progressPercent {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0d6efd;
+            margin: 8px 0;
+        }
+
+        /* Календарь */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-month {
+            font-size: 20px;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 16px;
+        }
+
+        .calendar-nav button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #0d6efd;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        .calendar-nav button:hover {
+            background: #e7f5ff;
+        }
+
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #868e96;
+            margin-bottom: 8px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #f8f9fa;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+
+        .calendar-day.has-lessons {
+            background: #cfe2ff;
+            color: #0d6efd;
+            font-weight: 600;
+        }
+
+        .calendar-day.today {
+            border: 2px solid #0d6efd;
+            font-weight: 700;
+        }
+
+        .calendar-day.selected {
+            background: #0d6efd;
+            color: white;
+            font-weight: 600;
+        }
+
+        .calendar-day:hover {
+            background: #e9ecef;
+        }
+
+        .calendar-day.has-lessons:hover {
+            background: #b6d4fe;
+        }
+
+        /* Список пар */
+        .lessons-list {
+            margin-top: 20px;
+        }
+
+        .lesson-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 16px;
+            margin-bottom: 8px;
+            transition: 0.2s;
+            border: 1px solid #e9ecef;
+        }
+
+        .lesson-item:hover {
+            background: #e9ecef;
+        }
+
+        .lesson-time {
+            font-weight: 700;
+            color: #0d6efd;
+            width: 80px;
+            font-size: 16px;
+        }
+
+        .lesson-info {
+            flex: 1;
+        }
+
+        .lesson-subject {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .lesson-details {
+            font-size: 13px;
+            color: #868e96;
+            display: flex;
+            gap: 12px;
+        }
+
+        .add-lesson-btn {
+            width: 100%;
+            padding: 16px;
+            background: #e7f5ff;
+            border: 1px dashed #0d6efd;
+            border-radius: 16px;
+            color: #0d6efd;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: 0.2s;
+        }
+
+        .add-lesson-btn:hover {
+            background: #d0ebff;
+        }
+
+        /* Задачи */
+        .filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 10px 20px;
+            background: #f1f3f5;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .filter-chip.active {
+            background: #0d6efd;
+            color: white;
+        }
+
+        .filter-chip:hover {
+            background: #e9ecef;
+        }
+
+        .filter-chip.active:hover {
+            background: #0b5ed7;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            background: white;
+            border-radius: 16px;
+            margin-bottom: 8px;
+            border: 1px solid #e9ecef;
+            transition: 0.2s;
+        }
+
+        .task-item:hover {
+            border-color: #0d6efd;
+        }
+
+        .task-checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            margin-right: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: white;
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+
+        .task-checkbox.checked {
+            background: #0d6efd;
+            border-color: #0d6efd;
+        }
+
+        .task-content {
+            flex: 1;
+        }
+
+        .task-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 16px;
+        }
+
+        .task-meta {
+            font-size: 13px;
+            color: #868e96;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .priority-high { color: #dc3545; }
+        .priority-medium { color: #fd7e14; }
+        .priority-low { color: #20c997; }
+
+        /* Профиль */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 40px;
+            box-shadow: 0 4px 12px rgba(13,110,253,0.3);
+        }
+
+        .profile-info h2 {
+            margin: 0 0 4px;
+            font-size: 24px;
+        }
+
+        .profile-info p {
+            color: #868e96;
+            font-size: 14px;
+            margin: 2px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0d6efd;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .stat-card span {
+            font-size: 13px;
+            color: #868e96;
+        }
+
+        .achievement-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .achievement {
+            text-align: center;
+        }
+
+        .achievement-icon {
+            width: 60px;
+            height: 60px;
+            background: #fff3bf;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+            font-size: 30px;
+            border: 2px solid #ffd966;
+        }
+
+        .achievement span {
+            font-size: 12px;
+            color: #495057;
+        }
+
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings-item span {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* Переключатель */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #0d6efd;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal h3 {
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .modal input, .modal select {
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            border: 1px solid #ced4da;
+            border-radius: 12px;
+            font-size: 16px;
+            background: #f8f9fa;
+        }
+
+        .modal input:focus, .modal select:focus {
+            outline: none;
+            border-color: #0d6efd;
+            background: white;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .button {
+            flex: 1;
+            padding: 16px;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .button:hover {
+            background: #0b5ed7;
+        }
+
+        .button-outline {
+            background: white;
+            border: 1px solid #0d6efd;
+            color: #0d6efd;
+        }
+
+        .button-outline:hover {
+            background: #e7f5ff;
+        }
+
+        /* Кнопка добавления */
+        .floating-button {
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            font-size: 32px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            z-index: 999;
+        }
+
+        .floating-button:hover {
+            transform: scale(1.1);
+        }
+
+        /* Загрузка */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #868e96;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #868e96;
+            border-top-color: #0d6efd;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Пустые состояния */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #868e96;
+        }
+
+        .empty-state .emoji {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Быстрые действия */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .quick-action {
+            flex: 1;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .quick-action:hover {
+            background: #e9ecef;
+            border-color: #0d6efd;
+        }
+
+        .quick-action .emoji {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .quick-action span {
+            font-size: 12px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <!-- Страница 1: Главная -->
+    <div class="page active" id="page1">
+        <div class="greeting-card card">
+            <div class="avatar" id="userAvatar">🎓</div>
+            <div class="greeting-text">
+                <h2 id="greeting">Доброе утро, Студент!</h2>
+                <p id="dateToday"></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Прогресс недели</h3>
+            <div class="progress-section">
+                <div class="progress-ring">
+                    <svg width="120" height="120" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="54" fill="none" stroke="#e9ecef" stroke-width="8"/>
+                        <circle id="progressCircle" cx="60" cy="60" r="54" fill="none" stroke="#0d6efd" stroke-width="8" 
+                                stroke-dasharray="339.292" stroke-dashoffset="339.292" transform="rotate(-90 60 60)" style="transition: stroke-dashoffset 0.5s"/>
+                    </svg>
+                </div>
+                <div id="progressPercent">0%</div>
+                
+                <div class="week-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="lessonsDone">0</div>
+                        <div class="stat-label">Пар</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="tasksDone">0</div>
+                        <div class="stat-label">Задач</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="daysLeft">0</div>
+                        <div class="stat-label">Дней</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📅 Сегодня</h3>
+            <div id="todaySummary">
+                <div class="loading">Загрузка...</div>
+            </div>
+            
+            <div class="quick-actions">
+                <div class="quick-action" onclick="showAddLessonModal()">
+                    <div class="emoji">📚</div>
+                    <span>Добавить пару</span>
+                </div>
+                <div class="quick-action" onclick="showAddTaskModal()">
+                    <div class="emoji">📝</div>
+                    <span>Добавить задачу</span>
+                </div>
+                <div class="quick-action" onclick="switchPage(2)">
+                    <div class="emoji">📅</div>
+                    <span>Расписание</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Страница 2: Расписание -->
+    <div class="page" id="page2">
+        <h1>📅 Расписание</h1>
+        
+        <div class="card">
+            <div class="calendar-header">
+                <span class="calendar-month" id="currentMonth">Декабрь 2024</span>
+                <div class="calendar-nav">
+                    <button onclick="changeMonth(-1)">←</button>
+                    <button onclick="changeMonth(1)">→</button>
+                </div>
+            </div>
+            
+            <div class="calendar-weekdays">
+                <div>Пн</div>
+                <div>Вт</div>
+                <div>Ср</div>
+                <div>Чт</div>
+                <div>Пт</div>
+                <div>Сб</div>
+                <div>Вс</div>
+            </div>
+            
+            <div class="calendar-grid" id="calendar"></div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3>Пары на <span id="selectedDate"></span></h3>
+            </div>
+            <div id="lessonsList" class="lessons-list">
+                <div class="loading">Загрузка...</div>
+            </div>
+            
+            <button class="add-lesson-btn" onclick="showAddLessonModal()">
+                ➕ Добавить пару
+            </button>
+        </div>
+    </div>
+
+    <!-- Страница 3: Задачи -->
+    <div class="page" id="page3">
+        <h1>📝 Задачи</h1>
+        
+        <div class="filters">
+            <div class="filter-chip active" onclick="filterTasks('all')">Все</div>
+            <div class="filter-chip" onclick="filterTasks('Математика')">📐 Математика</div>
+            <div class="filter-chip" onclick="filterTasks('Физика')">⚛️ Физика</div>
+            <div class="filter-chip" onclick="filterTasks('Программирование')">💻 Программирование</div>
+            <div class="filter-chip" onclick="filterTasks('Английский')">🌍 Английский</div>
+        </div>
+
+        <div class="card">
+            <div id="tasksList">
+                <div class="loading">Загрузка...</div>
+            </div>
+            
+            <button class="add-lesson-btn" onclick="showAddTaskModal()">
+                ➕ Добавить задачу
+            </button>
+        </div>
+    </div>
+
+    <!-- Страница 4: Профиль -->
+    <div class="page" id="page4">
+        <h1>👤 Профиль</h1>
+        
+        <div class="card">
+            <div class="profile-header">
+                <div class="profile-avatar" id="profileAvatar">🎓</div>
+                <div class="profile-info">
+                    <h2 id="userName">Студент</h2>
+                    <p id="userGroup">Группа: Не указана</p>
+                    <p id="userSince">С нами с: Дек 2024</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="statPairs">0</div>
+                <span>Пар</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statTasks">0</div>
+                <span>Задач</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statNotes">0</div>
+                <span>Заметок</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statDays">0</div>
+                <span>Дней</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🏆 Достижения</h3>
+            <div class="achievement-grid" id="achievements">
+                <div class="achievement">
+                    <div class="achievement-icon">📚</div>
+                    <span>Первая пара</span>
+                </div>
+                <div class="achievement">
+                    <div class="achievement-icon">✅</div>
+                    <span>5 задач</span>
+                </div>
+                <div class="achievement">
+                    <div class="achievement-icon">🔥</div>
+                    <span>Неделя</span>
+                </div>
+                <div class="achievement">
+                    <div class="achievement-icon">📝</div>
+                    <span>10 заметок</span>
+                </div>
+                <div class="achievement">
+                    <div class="achievement-icon">🎯</div>
+                    <span>Уровень 5</span>
+                </div>
+                <div class="achievement">
+                    <div class="achievement-icon">🏆</div>
+                    <span>Эксперт</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Настройки</h3>
+            
+            <div class="settings-item">
+                <span>🔔 Уведомления</span>
+                <label class="switch">
+                    <input type="checkbox" id="notifications" checked onchange="toggleSetting('notifications')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="settings-item">
+                <span>🌙 Темная тема</span>
+                <label class="switch">
+                    <input type="checkbox" id="darkTheme" onchange="toggleSetting('darkTheme')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="settings-item">
+                <span>📅 Напоминания о парах</span>
+                <label class="switch">
+                    <input type="checkbox" id="lessonReminders" checked onchange="toggleSetting('lessonReminders')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="settings-item">
+                <span>📝 Напоминания о дедлайнах</span>
+                <label class="switch">
+                    <input type="checkbox" id="deadlineReminders" checked onchange="toggleSetting('deadlineReminders')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="switchPage(1)">
+            <span class="nav-icon">🏠</span>
+            <span>Главная</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(2)">
+            <span class="nav-icon">📅</span>
+            <span>Расписание</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(3)">
+            <span class="nav-icon">📝</span>
+            <span>Задачи</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(4)">
+            <span class="nav-icon">👤</span>
+            <span>Профиль</span>
+        </div>
+    </div>
+
+    <!-- Кнопка быстрого добавления -->
+    <button class="floating-button" onclick="showQuickAddMenu()">➕</button>
+
+    <!-- Модальное окно для добавления пары -->
+    <div class="modal" id="addLessonModal">
+        <div class="modal-content">
+            <h3>➕ Добавить пару</h3>
+            <input type="text" id="lessonSubject" placeholder="Предмет" required>
+            <input type="time" id="lessonTime" required>
+            <input type="text" id="lessonRoom" placeholder="Аудитория" required>
+            <input type="text" id="lessonTeacher" placeholder="Преподаватель" required>
+            
+            <div class="modal-buttons">
+                <button class="button" onclick="addLesson()">Добавить</button>
+                <button class="button button-outline" onclick="closeModal('addLessonModal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления задачи -->
+    <div class="modal" id="addTaskModal">
+        <div class="modal-content">
+            <h3>➕ Добавить задачу</h3>
+            <input type="text" id="taskSubject" placeholder="Предмет" required>
+            <input type="text" id="taskDescription" placeholder="Описание" required>
+            <input type="date" id="taskDeadline" required>
+            <select id="taskPriority">
+                <option value="high">🔴 Высокий приоритет</option>
+                <option value="medium">🟡 Средний приоритет</option>
+                <option value="low">🟢 Низкий приоритет</option>
+            </select>
+            
+            <div class="modal-buttons">
+                <button class="button" onclick="addTask()">Добавить</button>
+                <button class="button button-outline" onclick="closeModal('addTaskModal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно быстрого добавления -->
+    <div class="modal" id="quickAddModal">
+        <div class="modal-content">
+            <h3>📌 Быстрое добавление</h3>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="button" onclick="showAddLessonModal(); closeModal('quickAddModal')">
+                    📚 Добавить пару
+                </button>
+                <button class="button" onclick="showAddTaskModal(); closeModal('quickAddModal')">
+                    📝 Добавить задачу
+                </button>
+                <button class="button button-outline" onclick="closeModal('quickAddModal')">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript код -->
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Получаем userId из URL (для GitHub Pages)
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId') || 'test_user';
+
+        // Состояние приложения
+        let state = {
+            user: {
+                name: 'Студент',
+                group: 'Не указана',
+                registeredAt: new Date().toISOString(),
+                settings: {
+                    notifications: true,
+                    darkTheme: false,
+                    lessonReminders: true,
+                    deadlineReminders: true
+                }
+            },
+            lessons: [],
+            deadlines: [],
+            currentMonth: new Date(),
+            selectedDate: new Date().toISOString().split('T')[0],
+            currentFilter: 'all'
+        };
+
+        // ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С БОТОМ ====================
+
+        // Отправка данных боту
+        function sendToBot(action, data = {}) {
+            const message = JSON.stringify({
+                action: action,
+                ...data
+            });
+            
+            if (tg) {
+                tg.sendData(message);
+                console.log('📤 Отправлено боту:', message);
+            } else {
+                console.log('📦 Тестовый режим:', message);
+                // Для тестирования без Telegram
+                alert(`Данные отправлены: ${action}`);
+            }
+        }
+
+        // Загрузка данных от бота (в реальности данные придут через initData)
+        function loadUserData() {
+            // Пробуем получить данные из initData
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                state.user.name = tg.initDataUnsafe.user.first_name || 'Студент';
+            }
+            
+            // Запрашиваем данные у бота
+            sendToBot('get_data', { userId });
+            
+            // Пока используем тестовые данные
+            setTimeout(() => {
+                loadTestData();
+            }, 1000);
+        }
+
+        // Тестовые данные (для разработки)
+        function loadTestData() {
+            const today = new Date().toISOString().split('T')[0];
+            const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            
+            state.lessons = [
+                { id: 1, date: today, time: '10:00', subject: 'Математика', room: '301', teacher: 'Иванов И.И.' },
+                { id: 2, date: today, time: '12:00', subject: 'Физика', room: '205', teacher: 'Петров П.П.' },
+                { id: 3, date: tomorrow, time: '09:00', subject: 'Программирование', room: '410', teacher: 'Сидоров С.С.' },
+                { id: 4, date: tomorrow, time: '11:00', subject: 'Английский', room: '115', teacher: 'Смирнова Е.А.' }
+            ];
+            
+            state.deadlines = [
+                { id: 1, subject: 'Математика', task: 'Контрольная работа', date: tomorrow, priority: 'high', completed: false },
+                { id: 2, subject: 'Физика', task: 'Лабораторная', date: tomorrow, priority: 'medium', completed: false },
+                { id: 3, subject: 'Программирование', task: 'Курсовая', date: '2024-12-25', priority: 'high', completed: false },
+                { id: 4, subject: 'Английский', task: 'Эссе', date: '2024-12-20', priority: 'low', completed: true }
+            ];
+            
+            updateUI();
+        }
+
+        // Сохранение новой пары
+        function saveLesson(lesson) {
+            const newLesson = {
+                id: state.lessons.length + 1,
+                date: state.selectedDate,
+                ...lesson
+            };
+            
+            state.lessons.push(newLesson);
+            
+            // Отправляем боту
+            sendToBot('add_lesson', { lesson: newLesson });
+            
+            updateUI();
+            closeModal('addLessonModal');
+            
+            tg.showAlert('✅ Пара добавлена!');
+        }
+
+        // Сохранение нового дедлайна
+        function saveDeadline(deadline) {
+            const newDeadline = {
+                id: state.deadlines.length + 1,
+                completed: false,
+                ...deadline
+            };
+            
+            state.deadlines.push(newDeadline);
+            
+            // Отправляем боту
+            sendToBot('add_deadline', { deadline: newDeadline });
+            
+            updateUI();
+            closeModal('addTaskModal');
+            
+            tg.showAlert('✅ Задача добавлена!');
+        }
+
+        // Отметка дедлайна как выполненного
+        function completeDeadline(id) {
+            const deadline = state.deadlines.find(d => d.id === id);
+            if (deadline) {
+                deadline.completed = true;
+                
+                // Отправляем боту
+                sendToBot('complete_deadline', { id });
+                
+                updateUI();
+                tg.showAlert('✅ Задача выполнена! Молодец! 🎉');
+            }
+        }
+
+        // ==================== НАВИГАЦИЯ ====================
+
+        function switchPage(pageNum) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(`page${pageNum}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach((item, index) => {
+                if (index === pageNum - 1) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            if (pageNum === 1) updateHomePage();
+            if (pageNum === 2) updateCalendar();
+            if (pageNum === 3) updateTasksList();
+        }
+
+        // ==================== ГЛАВНАЯ СТРАНИЦА ====================
+
+        function updateHomePage() {
+            const now = new Date();
+            const hours = now.getHours();
+            let greeting = '';
+            
+            if (hours < 12) greeting = 'Доброе утро';
+            else if (hours < 18) greeting = 'Добрый день';
+            else greeting = 'Добрый вечер';
+            
+            document.getElementById('greeting').innerHTML = `${greeting}, ${state.user.name}! 👋`;
+            document.getElementById('dateToday').innerHTML = now.toLocaleDateString('ru-RU', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+
+            // Прогресс недели
+            const weekProgress = calculateWeekProgress();
+            document.getElementById('progressPercent').innerHTML = weekProgress.percent + '%';
+            
+            const circle = document.getElementById('progressCircle');
+            const circumference = 2 * Math.PI * 54;
+            const offset = circumference - (weekProgress.percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+
+            document.getElementById('lessonsDone').innerHTML = weekProgress.lessonsDone;
+            document.getElementById('tasksDone').innerHTML = weekProgress.tasksDone;
+            document.getElementById('daysLeft').innerHTML = weekProgress.daysLeft;
+
+            // Сегодняшние события
+            const todayStr = now.toISOString().split('T')[0];
+            const todayLessons = state.lessons.filter(l => l.date === todayStr);
+            const todayTasks = state.deadlines.filter(d => d.date === todayStr && !d.completed);
+
+            let summary = '';
+            if (todayLessons.length === 0 && todayTasks.length === 0) {
+                summary = '<div class="empty-state"><div class="emoji">🎉</div><p>Сегодня ничего не запланировано. Отдыхай!</p></div>';
+            } else {
+                summary = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                
+                if (todayLessons.length > 0) {
+                    summary += `<div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 24px;">📚</span>
+                        <span><strong>${todayLessons.length}</strong> пар(ы)</span>
+                    </div>`;
+                    
+                    todayLessons.slice(0, 2).forEach(l => {
+                        summary += `<div style="margin-left: 32px; font-size: 13px; color: #495057;">
+                            • ${l.time} - ${l.subject} (${l.room})
+                        </div>`;
+                    });
+                    
+                    if (todayLessons.length > 2) {
+                        summary += `<div style="margin-left: 32px; font-size: 13px; color: #868e96;">
+                            и ещё ${todayLessons.length - 2}...
+                        </div>`;
+                    }
+                }
+                
+                if (todayTasks.length > 0) {
+                    summary += `<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <span style="font-size: 24px;">⏰</span>
+                        <span><strong>${todayTasks.length}</strong> дедлайн(ов)</span>
+                    </div>`;
+                    
+                    todayTasks.slice(0, 2).forEach(t => {
+                        const emoji = t.priority === 'high' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢';
+                        summary += `<div style="margin-left: 32px; font-size: 13px; color: #495057;">
+                            • ${emoji} ${t.subject} - ${t.task}
+                        </div>`;
+                    });
+                }
+                
+                summary += '</div>';
+            }
+            
+            document.getElementById('todaySummary').innerHTML = summary;
+        }
+
+        function calculateWeekProgress() {
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+            const weekLessons = state.lessons.filter(l => {
+                const d = new Date(l.date);
+                return d >= startOfWeek && d <= endOfWeek;
+            });
+
+            const weekTasks = state.deadlines.filter(d => {
+                const date = new Date(d.date);
+                return date >= startOfWeek && date <= endOfWeek;
+            });
+
+            const dayOfWeek = now.getDay() || 7;
+            const percent = Math.round((dayOfWeek / 7) * 100);
+
+            return {
+                percent: percent,
+                lessonsDone: weekLessons.length,
+                tasksDone: weekTasks.filter(t => t.completed).length,
+                daysLeft: 7 - dayOfWeek
+            };
+        }
+
+        // ==================== КАЛЕНДАРЬ ====================
+
+        function updateCalendar() {
+            const year = state.currentMonth.getFullYear();
+            const month = state.currentMonth.getMonth();
+            
+            document.getElementById('currentMonth').innerHTML = 
+                state.currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            
+            let calendarHTML = '';
+            
+            // Пустые ячейки до первого дня
+            const firstDayIndex = firstDay.getDay() || 7;
+            for (let i = 1; i < firstDayIndex; i++) {
+                calendarHTML += '<div class="calendar-day"></div>';
+            }
+            
+            // Дни месяца
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                const date = new Date(year, month, d);
+                const dateStr = date.toISOString().split('T')[0];
+                const hasLessons = state.lessons.some(l => l.date === dateStr);
+                const isToday = dateStr === new Date().toISOString().split('T')[0];
+                const isSelected = dateStr === state.selectedDate;
+                
+                calendarHTML += `<div class="calendar-day ${hasLessons ? 'has-lessons' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
+                                onclick="selectDate('${dateStr}')">${d}</div>`;
+            }
+            
+            document.getElementById('calendar').innerHTML = calendarHTML;
+            
+            // Показываем пары на выбранную дату
+            showLessonsForDate(state.selectedDate);
+        }
+
+        function changeMonth(delta) {
+            state.currentMonth.setMonth(state.currentMonth.getMonth() + delta);
+            updateCalendar();
+        }
+
+        function selectDate(dateStr) {
+            state.selectedDate = dateStr;
+            updateCalendar();
+        }
+
+        function showLessonsForDate(dateStr) {
+            const dateLessons = state.lessons.filter(l => l.date === dateStr);
+            const formattedDate = new Date(dateStr).toLocaleDateString('ru-RU', { 
+                day: 'numeric', 
+                month: 'long' 
+            });
+            
+            document.getElementById('selectedDate').innerHTML = formattedDate;
+            
+            let lessonsHTML = '';
+            if (dateLessons.length === 0) {
+                lessonsHTML = '<div class="empty-state"><div class="emoji">📭</div><p>Пар нет</p></div>';
+            } else {
+                dateLessons.sort((a, b) => a.time.localeCompare(b.time));
+                dateLessons.forEach(lesson => {
+                    lessonsHTML += `
+                        <div class="lesson-item">
+                            <div class="lesson-time">${lesson.time}</div>
+                            <div class="lesson-info">
+                                <div class="lesson-subject">${lesson.subject}</div>
+                                <div class="lesson-details">
+                                    <span>🏢 ${lesson.room}</span>
+                                    <span>👨‍🏫 ${lesson.teacher}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('lessonsList').innerHTML = lessonsHTML;
+        }
+
+        // ==================== ЗАДАЧИ ====================
+
+        function updateTasksList() {
+            let filteredTasks = state.deadlines;
+            if (state.currentFilter !== 'all') {
+                filteredTasks = state.deadlines.filter(d => 
+                    d.subject.toLowerCase().includes(state.currentFilter.toLowerCase())
+                );
+            }
+            
+            filteredTasks.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            let tasksHTML = '';
+            if (filteredTasks.length === 0) {
+                tasksHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Задач нет</p></div>';
+            } else {
+                filteredTasks.forEach(task => {
+                    const daysLeft = Math.ceil((new Date(task.date) - new Date()) / (1000 * 60 * 60 * 24));
+                    const priorityClass = `priority-${task.priority}`;
+                    const priorityEmoji = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
+                    const daysText = daysLeft < 0 ? '🔥 Просрочено' : 
+                                   daysLeft === 0 ? '🚨 Сегодня' : 
+                                   daysLeft === 1 ? '⏰ Завтра' : 
+                                   `⏰ ${daysLeft} дн.`;
+                    
+                    tasksHTML += `
+                        <div class="task-item">
+                            <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
+                                 onclick="completeDeadline(${task.id})">
+                                ${task.completed ? '✓' : ''}
+                            </div>
+                            <div class="task-content">
+                                <div class="task-title">${task.subject} - ${task.task}</div>
+                                <div class="task-meta">
+                                    <span class="${priorityClass}">${priorityEmoji} ${task.priority}</span>
+                                    <span>📅 ${new Date(task.date).toLocaleDateString('ru-RU')}</span>
+                                    <span style="color: ${daysLeft < 2 ? '#dc3545' : '#868e96'}">${daysText}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('tasksList').innerHTML = tasksHTML;
+        }
+
+        function filterTasks(filter) {
+            state.currentFilter = filter;
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+                if (chip.innerText.includes(filter) || 
+                    (filter === 'all' && chip.innerText === 'Все')) {
+                    chip.classList.add('active');
+                }
+            });
+            updateTasksList();
+        }
+
+        // ==================== ПРОФИЛЬ ====================
+
+        function updateProfile() {
+            document.getElementById('userName').innerHTML = state.user.name;
+            document.getElementById('userGroup').innerHTML = `Группа: ${state.user.group}`;
+            
+            const registeredDate = new Date(state.user.registeredAt);
+            document.getElementById('userSince').innerHTML = `С нами с: ${registeredDate.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' })}`;
+            
+            document.getElementById('statPairs').innerHTML = state.lessons.length;
+            document.getElementById('statTasks').innerHTML = state.deadlines.filter(d => !d.completed).length;
+            document.getElementById('statNotes').innerHTML = 0;
+            document.getElementById('statDays').innerHTML = Math.floor((new Date() - registeredDate) / (1000 * 60 * 60 * 24));
+            
+            // Настройки
+            document.getElementById('notifications').checked = state.user.settings.notifications;
+            document.getElementById('lessonReminders').checked = state.user.settings.lessonReminders;
+            document.getElementById('deadlineReminders').checked = state.user.settings.deadlineReminders;
+        }
+
+        function toggleSetting(setting) {
+            const value = document.getElementById(setting).checked;
+            state.user.settings[setting] = value;
+            
+            // Отправляем боту
+            sendToBot('update_settings', { setting, value });
+            
+            tg.showAlert(`⚙️ Настройка обновлена`);
+        }
+
+        // ==================== МОДАЛЬНЫЕ ОКНА ====================
+
+        function showAddLessonModal() {
+            document.getElementById('addLessonModal').classList.add('active');
+        }
+
+        function showAddTaskModal() {
+            document.getElementById('addTaskModal').classList.add('active');
+        }
+
+        function showQuickAddMenu() {
+            document.getElementById('quickAddModal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function addLesson() {
+            const subject = document.getElementById('lessonSubject').value;
+            const time = document.getElementById('lessonTime').value;
+            const room = document.getElementById('lessonRoom').value;
+            const teacher = document.getElementById('lessonTeacher').value;
+            
+            if (subject && time && room && teacher) {
+                saveLesson({
+                    subject: subject,
+                    time: time,
+                    room: room,
+                    teacher: teacher
+                });
+                
+                // Очистить поля
+                document.getElementById('lessonSubject').value = '';
+                document.getElementById('lessonTime').value = '';
+                document.getElementById('lessonRoom').value = '';
+                document.getElementById('lessonTeacher').value = '';
+            } else {
+                tg.showAlert('❌ Заполните все поля');
+            }
+        }
+
+        function addTask() {
+            const subject = document.getElementById('taskSubject').value;
+            const description = document.getElementById('taskDescription').value;
+            const deadline = document.getElementById('taskDeadline').value;
+            const priority = document.getElementById('taskPriority').value;
+            
+            if (subject && description && deadline) {
+                saveDeadline({
+                    subject: subject,
+                    task: description,
+                    date: deadline,
+                    priority: priority
+                });
+                
+                // Очистить поля
+                document.getElementById('taskSubject').value = '';
+                document.getElementById('taskDescription').value = '';
+                document.getElementById('taskDeadline').value = '';
+            } else {
+                tg.showAlert('❌ Заполните все поля');
+            }
+        }
+
+        // Обновление всего UI
+        function updateUI() {
+            updateHomePage();
+            updateCalendar();
+            updateTasksList();
+            updateProfile();
+        }
+
+        // Инициализация
+        window.onload = function() {
+            loadUserData();
+            
+            // Закрытие модальных окон по клику вне
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        this.classList.remove('active');
+                    }
+                });
+            });
+        };
+    </script>
+</body>
+</html>
