@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Student Helper · Школьный дневник</title>
+    
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Font Awesome для иконок -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==================== СБРОС И ПЕРЕМЕННЫЕ ==================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Основная цветовая схема - светло-голубая как в школьных дневниках */
+            --bg-primary: #f0f7ff;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f5faff;
+            
+            --accent-primary: #2d7ee9;
+            --accent-secondary: #6ba6f0;
+            --accent-light: #e1f0fe;
+            
+            --text-primary: #1a3650;
+            --text-secondary: #4a6a85;
+            --text-tertiary: #7f9bb5;
+            
+            --border-light: #d9e8f5;
+            --border-grid: #c5d9e8;
+            --border-focus: #2d7ee9;
+            
+            --shadow-sm: 0 2px 8px rgba(45, 126, 233, 0.08);
+            --shadow-md: 0 4px 16px rgba(45, 126, 233, 0.12);
+            --shadow-lg: 0 8px 24px rgba(45, 126, 233, 0.15);
+            
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --info: #17a2b8;
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 20px;
+            --spacing-xl: 24px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ==================== НАВИГАЦИЯ ==================== */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-lg);
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+            border-top: 1px solid var(--border-light);
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--spacing-xs);
+            color: var(--text-tertiary);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-lg);
+            width: 70px;
+        }
+
+        .nav-item i {
+            font-size: 22px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: var(--accent-primary);
+            background: var(--accent-light);
+        }
+
+        /* ==================== СТРАНИЦЫ ==================== */
+        .page {
+            display: none;
+            padding: var(--spacing-lg) var(--spacing-md) 100px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ==================== ЗАГОЛОВКИ ==================== */
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: var(--spacing-lg);
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        h1 i {
+            color: var(--accent-primary);
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-secondary);
+        }
+
+        /* ==================== КАРТОЧКИ ==================== */
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-light);
+            transition: all 0.2s ease;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 2px solid var(--accent-light);
+        }
+
+        .card-header h3 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        /* ==================== ВЫБОР СИСТЕМЫ НЕДЕЛЬ ==================== */
+        .week-system-selector {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--border-grid);
+        }
+
+        .system-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .system-options {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        .system-option {
+            flex: 1;
+            padding: var(--spacing-md);
+            text-align: center;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-primary);
+        }
+
+        .system-option.active {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+        }
+
+        .system-option i {
+            font-size: 20px;
+            margin-bottom: var(--spacing-xs);
+            display: block;
+        }
+
+        .current-week-info {
+            margin-top: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: var(--accent-light);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--accent-primary);
+            text-align: center;
+        }
+
+        /* ==================== ШКОЛЬНЫЙ ДНЕВНИК - РАСПИСАНИЕ ==================== */
+        .schedule-container {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-grid);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .schedule-week-tabs {
+            display: flex;
+            background: var(--accent-light);
+            border-bottom: 2px solid var(--accent-primary);
+        }
+
+        .week-tab {
+            flex: 1;
+            padding: var(--spacing-md);
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+            background: transparent;
+        }
+
+        .week-tab.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .week-tab:first-child {
+            border-right: 1px solid var(--border-grid);
+        }
+
+        .schedule-grid-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(6, minmax(100px, 1fr));
+            background: var(--bg-card);
+            min-width: 680px;
+        }
+
+        .schedule-time-column {
+            background: var(--accent-light);
+            border-right: 2px solid var(--border-grid);
+        }
+
+        .schedule-time-slot {
+            padding: var(--spacing-md) var(--spacing-sm);
+            text-align: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--accent-primary);
+            border-bottom: 1px solid var(--border-grid);
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-primary);
+        }
+
+        .schedule-day-column {
+            min-width: 100px;
+        }
+
+        .schedule-day-header {
+            padding: var(--spacing-md);
+            text-align: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--accent-light);
+            border-bottom: 2px solid var(--border-grid);
+            border-right: 1px solid var(--border-grid);
+        }
+
+        .schedule-day-header span {
+            display: block;
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .schedule-cell {
+            min-height: 80px;
+            border-bottom: 1px solid var(--border-grid);
+            border-right: 1px solid var(--border-grid);
+            padding: var(--spacing-xs);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            background: var(--bg-card);
+            position: relative;
+        }
+
+        .schedule-cell:hover {
+            background: var(--accent-light);
+        }
+
+        .schedule-cell.empty {
+            background: #f8fafc;
+        }
+
+        .schedule-cell.empty::after {
+            content: "+";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-tertiary);
+            font-size: 20px;
+            opacity: 0.3;
+        }
+
+        .schedule-cell.empty:hover::after {
+            opacity: 1;
+            color: var(--accent-primary);
+        }
+
+        .lesson-badge {
+            background: var(--accent-light);
+            border-left: 4px solid var(--accent-primary);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .lesson-badge .subject {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px;
+        }
+
+        .lesson-badge .room {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .lesson-badge .teacher {
+            font-size: 9px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .week-type-indicator {
+            font-size: 10px;
+            margin-top: 2px;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        /* ==================== ПРОФИЛЬ И АВАТАРЫ ==================== */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+            box-shadow: var(--shadow-md);
+            text-transform: uppercase;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .avatar.small {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            font-size: 18px;
+        }
+
+        .profile-info h2 {
+            margin: 0 0 var(--spacing-xs);
+            font-size: 22px;
+        }
+
+        .profile-info p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin: 2px 0;
+        }
+
+        /* ==================== СТАТИСТИКА ==================== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-sm);
+            margin: var(--spacing-lg) 0;
+        }
+
+        .stat-card {
+            background: var(--accent-light);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-primary);
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* ==================== ПРОГРЕСС ==================== */
+        .progress-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: var(--spacing-md) 0;
+        }
+
+        .week-stats {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: var(--spacing-md);
+        }
+
+        .week-stat {
+            text-align: center;
+        }
+
+        .week-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .week-stat-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        /* ==================== КАЛЕНДАРЬ МИНИ ==================== */
+        .mini-calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .mini-calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+        }
+
+        .mini-calendar-day.has-lessons {
+            background: var(--accent-light);
+            color: var(--accent-primary);
+        }
+
+        .mini-calendar-day.today {
+            border: 2px solid var(--accent-primary);
+            font-weight: 700;
+        }
+
+        /* ==================== ЗАДАЧИ ==================== */
+        .filters {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .filter-chip.active {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+        }
+
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            padding: var(--spacing-md);
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-sm);
+            border: 1px solid var(--border-light);
+            transition: all 0.2s ease;
+        }
+
+        .task-checkbox {
+            width: 22px;
+            height: 22px;
+            border: 2px solid var(--border-light);
+            border-radius: 7px;
+            margin-right: var(--spacing-md);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .task-checkbox.checked {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .task-content {
+            flex: 1;
+        }
+
+        .task-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .task-meta {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+
+        .priority-high { color: var(--danger); }
+        .priority-medium { color: var(--warning); }
+        .priority-low { color: var(--success); }
+
+        /* ==================== ГРУППЫ ==================== */
+        .group-card {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-md);
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-sm);
+            border: 1px solid var(--border-light);
+            gap: var(--spacing-md);
+        }
+
+        .group-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .group-info {
+            flex: 1;
+        }
+
+        .group-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .group-meta {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .group-points {
+            background: var(--accent-light);
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        /* ==================== ТУРНИРНАЯ ТАБЛИЦА ==================== */
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-xs);
+            border: 1px solid var(--border-light);
+        }
+
+        .leaderboard-rank {
+            width: 30px;
+            height: 30px;
+            background: var(--accent-light);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-right: var(--spacing-sm);
+        }
+
+        .leaderboard-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            margin-right: var(--spacing-sm);
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .leaderboard-info {
+            flex: 1;
+        }
+
+        .leaderboard-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .leaderboard-points {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .leaderboard-medal {
+            font-size: 20px;
+        }
+
+        /* ==================== НАСТРОЙКИ ==================== */
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-md) 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings-item span {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .settings-item i {
+            color: var(--text-tertiary);
+            width: 24px;
+            margin-right: var(--spacing-sm);
+        }
+
+        /* Переключатель */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--border-light);
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        /* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            width: 90%;
+            max-width: 400px;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-content h3 {
+            margin-bottom: var(--spacing-lg);
+            font-size: 20px;
+        }
+
+        .modal-content input,
+        .modal-content select,
+        .modal-content textarea {
+            width: 100%;
+            padding: 12px;
+            margin: var(--spacing-sm) 0;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .modal-content input:focus,
+        .modal-content select:focus,
+        .modal-content textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-lg);
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .btn-outline {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+        }
+
+        /* ==================== КНОПКА ДОБАВЛЕНИЯ ==================== */
+        .fab {
+            position: fixed;
+            bottom: 90px;
+            right: var(--spacing-lg);
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        /* ==================== ПУСТЫЕ СОСТОЯНИЯ ==================== */
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-xl);
+            color: var(--text-tertiary);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: var(--spacing-md);
+            color: var(--border-light);
+        }
+
+        /* ==================== АДАПТИВНОСТЬ ==================== */
+        @media (max-width: 480px) {
+            .schedule-grid {
+                grid-template-columns: 60px repeat(6, minmax(90px, 1fr));
+            }
+            
+            .schedule-time-slot {
+                padding: var(--spacing-sm);
+                font-size: 11px;
+                min-height: 70px;
+            }
+            
+            .schedule-day-header {
+                padding: var(--spacing-sm);
+                font-size: 12px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Страница 1: Главная -->
+    <div class="page active" id="page1">
+        <div class="profile-header">
+            <div class="avatar" id="userAvatar">
+                <span id="avatarInitials">👤</span>
+            </div>
+            <div class="profile-info">
+                <h2 id="greeting">Доброе утро</h2>
+                <p id="userName">Студент</p>
+                <p id="dateToday"></p>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="statPairs">0</div>
+                <div class="stat-label">Пары</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statTasks">0</div>
+                <div class="stat-label">Задачи</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statGroups">0</div>
+                <div class="stat-label">Группы</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statLevel">1</div>
+                <div class="stat-label">Уровень</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-line" style="color: var(--accent-primary);"></i> Прогресс недели</h3>
+                <span style="color: var(--text-tertiary); font-size: 13px;" id="weekProgress">0%</span>
+            </div>
+            <div class="progress-section">
+                <div style="width: 100%; height: 8px; background: var(--border-light); border-radius: 4px; margin: var(--spacing-md) 0;">
+                    <div id="weekProgressBar" style="width: 0%; height: 100%; background: var(--accent-primary); border-radius: 4px; transition: width 0.3s;"></div>
+                </div>
+                <div class="week-stats">
+                    <div class="week-stat">
+                        <div class="week-stat-value" id="weekLessons">0</div>
+                        <div class="week-stat-label">Пар</div>
+                    </div>
+                    <div class="week-stat">
+                        <div class="week-stat-value" id="weekTasks">0</div>
+                        <div class="week-stat-label">Задач</div>
+                    </div>
+                    <div class="week-stat">
+                        <div class="week-stat-value" id="weekPoints">0</div>
+                        <div class="week-stat-label">Очков</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-calendar-day" style="color: var(--accent-primary);"></i> Расписание на сегодня</h3>
+                <span class="week-badge" id="todayWeekType">Числитель</span>
+            </div>
+            <div id="todayLessons"></div>
+        </div>
+    </div>
+
+    <!-- Страница 2: Расписание (Школьный дневник) -->
+    <div class="page" id="page2">
+        <h1><i class="fas fa-calendar-alt"></i> Дневник</h1>
+        
+        <!-- Выбор системы недель -->
+        <div class="week-system-selector">
+            <div class="system-title">Система обучения:</div>
+            <div class="system-options">
+                <div class="system-option" onclick="setWeekSystem('one_week')">
+                    <i class="fas fa-calendar"></i>
+                    Однонедельная
+                </div>
+                <div class="system-option active" onclick="setWeekSystem('two_week')">
+                    <i class="fas fa-calendar-alt"></i>
+                    Двухнедельная
+                </div>
+            </div>
+            <div class="current-week-info" id="currentWeekInfo">
+                📗 Текущая неделя: Числитель
+            </div>
+        </div>
+        
+        <div class="schedule-container">
+            <div class="schedule-week-tabs" id="weekTabs">
+                <div class="week-tab active" onclick="switchWeek('numerator')">📗 Числитель</div>
+                <div class="week-tab" onclick="switchWeek('denominator')">📕 Знаменатель</div>
+            </div>
+            
+            <div class="schedule-grid-wrapper">
+                <div class="schedule-grid" id="scheduleGrid">
+                    <!-- Сетка заполняется через JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-list"></i> На этой неделе</h3>
+                <span style="color: var(--text-tertiary);" id="weekLessonsCount">0 пар</span>
+            </div>
+            <div class="mini-calendar" id="miniCalendar"></div>
+        </div>
+
+        <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-md);">
+            <button class="btn btn-primary" style="flex: 1;" onclick="showAddLessonModal()">
+                <i class="fas fa-plus" style="margin-right: 8px;"></i>Добавить пару
+            </button>
+            <button class="btn btn-outline" style="flex: 0 0 50px;" onclick="exportSchedule()">
+                <i class="fas fa-download"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Страница 3: Задачи -->
+    <div class="page" id="page3">
+        <h1><i class="fas fa-tasks"></i> Задачи</h1>
+        
+        <div class="filters">
+            <div class="filter-chip active" onclick="filterTasks('all')">Все</div>
+            <div class="filter-chip" onclick="filterTasks('today')">Сегодня</div>
+            <div class="filter-chip" onclick="filterTasks('week')">Неделя</div>
+            <div class="filter-chip" onclick="filterTasks('high')">🔥 Высокий</div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-clock"></i> Активные задачи</h3>
+                <span id="tasksCount">0</span>
+            </div>
+            <div id="tasksList"></div>
+            
+            <button class="btn btn-primary" style="margin-top: var(--spacing-md); width: 100%;" onclick="showAddTaskModal()">
+                <i class="fas fa-plus" style="margin-right: 8px;"></i>Новая задача
+            </button>
+        </div>
+    </div>
+
+    <!-- Страница 4: Группы -->
+    <div class="page" id="page4">
+        <h1><i class="fas fa-users"></i> Группы</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-user-friends"></i> Мои группы</h3>
+                <button class="btn btn-outline" style="padding: 6px 12px;" onclick="showCreateGroupModal()">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div id="myGroupsList"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-trophy"></i> Турнирная таблица</h3>
+                <span style="color: var(--text-tertiary);" id="leaderboardWeek">Неделя 10</span>
+            </div>
+            <div id="leaderboardList"></div>
+        </div>
+    </div>
+
+    <!-- Страница 5: Профиль -->
+    <div class="page" id="page5">
+        <h1><i class="fas fa-user-circle"></i> Профиль</h1>
+        
+        <div class="card">
+            <div class="profile-header">
+                <div class="avatar large" id="profileAvatar">
+                    <span id="profileInitials">👤</span>
+                </div>
+                <div class="profile-info">
+                    <h2 id="profileName">Студент</h2>
+                    <p id="profileGroup">Группа: ИУК1-11Б</p>
+                    <p id="profileLevel">Уровень 1 · 0/100 опыта</p>
+                </div>
+            </div>
+            
+            <div style="width: 100%; height: 8px; background: var(--border-light); border-radius: 4px; margin: var(--spacing-md) 0;">
+                <div id="expProgress" style="width: 0%; height: 100%; background: var(--accent-primary); border-radius: 4px; transition: width 0.3s;"></div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="profilePairs">0</div>
+                <div class="stat-label">Пар</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="profileTasks">0</div>
+                <div class="stat-label">Задач</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="profileDays">0</div>
+                <div class="stat-label">Дней</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="profileLevel2">1</div>
+                <div class="stat-label">Уровень</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-cog"></i> Настройки</h3>
+            
+            <div class="settings-item">
+                <div>
+                    <i class="fas fa-bell"></i>
+                    <span>Уведомления</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="notifications" checked onchange="toggleSetting('notifications')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="settings-item">
+                <div>
+                    <i class="fas fa-moon"></i>
+                    <span>Темная тема</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="darkTheme" onchange="toggleSetting('darkTheme')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="switchPage(1)">
+            <i class="fas fa-home"></i>
+            <span>Главная</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(2)">
+            <i class="fas fa-calendar-alt"></i>
+            <span>Дневник</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(3)">
+            <i class="fas fa-tasks"></i>
+            <span>Задачи</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(4)">
+            <i class="fas fa-users"></i>
+            <span>Группы</span>
+        </div>
+        <div class="nav-item" onclick="switchPage(5)">
+            <i class="fas fa-user"></i>
+            <span>Профиль</span>
+        </div>
+    </div>
+
+    <!-- Кнопка быстрого добавления -->
+    <button class="fab" onclick="showQuickAddMenu()">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Модальное окно для добавления пары -->
+    <div class="modal" id="addLessonModal">
+        <div class="modal-content">
+            <h3><i class="fas fa-book" style="color: var(--accent-primary);"></i> Новая пара</h3>
+            
+            <select id="lessonWeekType">
+                <option value="both">📘 Каждую неделю</option>
+                <option value="numerator">📗 Числитель</option>
+                <option value="denominator">📕 Знаменатель</option>
+            </select>
+            
+            <select id="lessonDay">
+                <option value="Понедельник">Понедельник</option>
+                <option value="Вторник">Вторник</option>
+                <option value="Среда">Среда</option>
+                <option value="Четверг">Четверг</option>
+                <option value="Пятница">Пятница</option>
+                <option value="Суббота">Суббота</option>
+            </select>
+            
+            <input type="time" id="lessonTime" placeholder="Время" required>
+            <input type="text" id="lessonSubject" placeholder="Предмет" required>
+            <input type="text" id="lessonRoom" placeholder="Аудитория" required>
+            <input type="text" id="lessonTeacher" placeholder="Преподаватель" required>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="addLesson()">Добавить</button>
+                <button class="btn btn-outline" onclick="closeModal('addLessonModal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления задачи -->
+    <div class="modal" id="addTaskModal">
+        <div class="modal-content">
+            <h3><i class="fas fa-tasks" style="color: var(--accent-primary);"></i> Новая задача</h3>
+            
+            <input type="text" id="taskSubject" placeholder="Предмет" required>
+            <input type="text" id="taskDescription" placeholder="Описание" required>
+            <input type="date" id="taskDeadline" required>
+            
+            <select id="taskPriority">
+                <option value="high">🔴 Высокий приоритет</option>
+                <option value="medium">🟡 Средний приоритет</option>
+                <option value="low">🟢 Низкий приоритет</option>
+            </select>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="addTask()">Добавить</button>
+                <button class="btn btn-outline" onclick="closeModal('addTaskModal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для создания группы -->
+    <div class="modal" id="createGroupModal">
+        <div class="modal-content">
+            <h3><i class="fas fa-users" style="color: var(--accent-primary);"></i> Создать группу</h3>
+            
+            <input type="text" id="groupName" placeholder="Название группы" required>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="createGroup()">Создать</button>
+                <button class="btn btn-outline" onclick="closeModal('createGroupModal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для быстрого добавления -->
+    <div class="modal" id="quickAddModal">
+        <div class="modal-content">
+            <h3><i class="fas fa-bolt" style="color: var(--accent-primary);"></i> Быстрое добавление</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
+                <button class="btn btn-primary" onclick="showAddLessonModal(); closeModal('quickAddModal')">
+                    <i class="fas fa-book" style="margin-right: 8px;"></i>Новая пара
+                </button>
+                <button class="btn btn-primary" onclick="showAddTaskModal(); closeModal('quickAddModal')">
+                    <i class="fas fa-tasks" style="margin-right: 8px;"></i>Новая задача
+                </button>
+                <button class="btn btn-primary" onclick="showCreateGroupModal(); closeModal('quickAddModal')">
+                    <i class="fas fa-users" style="margin-right: 8px;"></i>Создать группу
+                </button>
+                <button class="btn btn-outline" onclick="closeModal('quickAddModal')">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM ====================
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Получаем данные пользователя
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId') || tg.initDataUnsafe?.user?.id || '12345';
+        const userName = tg.initDataUnsafe?.user?.first_name || 'Студент';
+        const userLastName = tg.initDataUnsafe?.user?.last_name || '';
+        const fullName = userName + (userLastName ? ' ' + userLastName : '');
+
+        // ==================== ФУНКЦИИ ДЛЯ АВАТАРОК ====================
+        function getUserInitials(name) {
+            if (!name || name === 'Студент') return '👤';
+            const cleanName = name.replace(/[^\p{L}\s]/gu, '').trim();
+            if (!cleanName) return '👤';
+            
+            const words = cleanName.split(' ');
+            if (words.length === 1) {
+                return words[0].charAt(0).toUpperCase();
+            } else {
+                return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+            }
+        }
+
+        function getUserColor(userId) {
+            const colors = [
+                '#ff6b6b', '#ff9f4b', '#ffd966', '#6b8e4c', 
+                '#4d9eff', '#9d7eff', '#ff7e9f', '#4ecdc4'
+            ];
+            const numId = typeof userId === 'string' ? 
+                userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 
+                Number(userId);
+            return colors[Math.abs(numId) % colors.length];
+        }
+
+        // ==================== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ====================
+        let state = {
+            user: {
+                name: fullName || 'Студент',
+                group: '11 класс',
+                level: 5,
+                experience: 450,
+                nextLevelExp: 500
+            },
+            weekSystem: 'two_week', // 'one_week' или 'two_week'
+            schedule: {
+                numerator: [
+                    { day: 'Понедельник', time: '08:30', subject: 'Математика', room: '301', teacher: 'Иванова М.И.' },
+                    { day: 'Понедельник', time: '10:00', subject: 'Физика', room: '205', teacher: 'Петров А.В.' },
+                    { day: 'Вторник', time: '08:30', subject: 'Русский язык', room: '110', teacher: 'Сидорова Е.Н.' },
+                    { day: 'Вторник', time: '10:00', subject: 'Литература', room: '110', teacher: 'Сидорова Е.Н.' },
+                    { day: 'Среда', time: '08:30', subject: 'Английский', room: '215', teacher: 'Смирнова О.П.' },
+                    { day: 'Четверг', time: '08:30', subject: 'История', room: '308', teacher: 'Козлов Д.В.' },
+                    { day: 'Пятница', time: '08:30', subject: 'Биология', room: '120', teacher: 'Морозова Т.А.' },
+                    { day: 'Пятница', time: '10:00', subject: 'Химия', room: '120', teacher: 'Морозова Т.А.' }
+                ],
+                denominator: [
+                    { day: 'Понедельник', time: '08:30', subject: 'Математика', room: '301', teacher: 'Иванова М.И.' },
+                    { day: 'Понедельник', time: '10:00', subject: 'Информатика', room: '410', teacher: 'Волков С.С.' },
+                    { day: 'Вторник', time: '08:30', subject: 'Физика', room: '205', teacher: 'Петров А.В.' },
+                    { day: 'Среда', time: '08:30', subject: 'Английский', room: '215', teacher: 'Смирнова О.П.' },
+                    { day: 'Среда', time: '10:00', subject: 'Обществознание', room: '308', teacher: 'Козлов Д.В.' },
+                    { day: 'Четверг', time: '08:30', subject: 'География', room: '118', teacher: 'Васильева Н.И.' },
+                    { day: 'Пятница', time: '08:30', subject: 'Физкультура', room: 'Спортзал', teacher: 'Соколов А.А.' }
+                ]
+            },
+            deadlines: [
+                { id: 1, subject: 'Математика', task: 'Контрольная работа', date: '2025-03-25', priority: 'high', completed: false },
+                { id: 2, subject: 'Физика', task: 'Лабораторная', date: '2025-03-26', priority: 'medium', completed: false },
+                { id: 3, subject: 'Русский язык', task: 'Сочинение', date: '2025-03-28', priority: 'medium', completed: false }
+            ],
+            groups: [
+                { id: 1, name: '11 класс', members: 25, points: 3450, role: 'member' },
+                { id: 2, name: 'Математики', members: 8, points: 1560, role: 'owner' }
+            ],
+            leaderboard: [
+                { name: 'Алексей', points: 1240, avatar: 'А' },
+                { name: 'Мария', points: 980, avatar: 'М' },
+                { name: 'Дмитрий', points: 750, avatar: 'Д' },
+                { name: 'Елена', points: 620, avatar: 'Е' },
+                { name: 'Сергей', points: 510, avatar: 'С' }
+            ],
+            currentWeek: 'numerator',
+            currentFilter: 'all',
+            timeSlots: ['08:30', '10:00', '11:30', '13:30', '15:00', '16:30']
+        };
+
+        // ==================== ФУНКЦИИ ДЛЯ НЕДЕЛЬ ====================
+        function getCurrentWeekType() {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 8, 1);
+            if (now < startOfYear) {
+                startOfYear.setFullYear(startOfYear.getFullYear() - 1);
+            }
+            const diffDays = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+            const weekNumber = Math.floor(diffDays / 7) + 1;
+            return weekNumber % 2 === 0 ? 'denominator' : 'numerator';
+        }
+
+        function setWeekSystem(system) {
+            state.weekSystem = system;
+            
+            // Обновляем UI
+            document.querySelectorAll('.system-option').forEach(opt => {
+                opt.classList.remove('active');
+            });
+            event.target.closest('.system-option').classList.add('active');
+            
+            // Показываем/скрываем вкладки недель
+            const weekTabs = document.getElementById('weekTabs');
+            if (system === 'one_week') {
+                weekTabs.style.display = 'none';
+                document.getElementById('currentWeekInfo').innerHTML = '📅 Однонедельная система';
+            } else {
+                weekTabs.style.display = 'flex';
+                updateCurrentWeekInfo();
+            }
+            
+            renderScheduleGrid();
+        }
+
+        function updateCurrentWeekInfo() {
+            const weekType = getCurrentWeekType();
+            const weekText = weekType === 'numerator' ? 'Числитель' : 'Знаменатель';
+            document.getElementById('currentWeekInfo').innerHTML = `📗 Текущая неделя: ${weekText}`;
+        }
+
+        function switchWeek(weekType) {
+            state.currentWeek = weekType;
+            document.querySelectorAll('.week-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if ((weekType === 'numerator' && tab.textContent.includes('Числитель')) ||
+                    (weekType === 'denominator' && tab.textContent.includes('Знаменатель'))) {
+                    tab.classList.add('active');
+                }
+            });
+            renderScheduleGrid();
+        }
+
+        // ==================== РАСПИСАНИЕ ====================
+        function renderScheduleGrid() {
+            const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'ятница', 'Суббота'];
+            const schedule = state.weekSystem === 'one_week' ? 
+                [...state.schedule.numerator, ...state.schedule.denominator] : 
+                state.schedule[state.currentWeek];
+            
+            let gridHtml = '';
+            
+            // Колонка времени
+            gridHtml += '<div class="schedule-time-column">';
+            state.timeSlots.forEach(time => {
+                gridHtml += `<div class="schedule-time-slot">${time}</div>`;
+            });
+            gridHtml += '</div>';
+            
+            // Колонки дней
+            days.forEach(day => {
+                gridHtml += `<div class="schedule-day-column">`;
+                
+                // Заголовок дня
+                const dayNames = {
+                    'Понедельник': 'ПН', 'Вторник': 'ВТ', 'Среда': 'СР',
+                    'Четверг': 'ЧТ', 'ятница': 'ПТ', 'Суббота': 'СБ'
+                };
+                gridHtml += `<div class="schedule-day-header">${dayNames[day]}<span>${day}</span></div>`;
+                
+                // Ячейки по времени
+                state.timeSlots.forEach(time => {
+                    const lesson = schedule.find(l => l.day === day && l.time === time);
+                    
+                    if (lesson) {
+                        gridHtml += `
+                            <div class="schedule-cell" onclick="editLesson('${day}', '${time}')">
+                                <div class="lesson-badge">
+                                    <div class="subject">${lesson.subject}</div>
+                                    <div class="room"><i class="fas fa-door-open"></i> ${lesson.room}</div>
+                                    <div class="teacher">${lesson.teacher}</div>
+                                    ${state.weekSystem === 'two_week' ? 
+                                        `<div class="week-type-indicator">
+                                            ${state.currentWeek === 'numerator' ? '📗' : '📕'}
+                                        </div>` : ''
+                                    }
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        gridHtml += `
+                            <div class="schedule-cell empty" onclick="addLessonAt('${day}', '${time}')">
+                            </div>
+                        `;
+                    }
+                });
+                
+                gridHtml += '</div>';
+            });
+            
+            document.getElementById('scheduleGrid').innerHTML = gridHtml;
+            
+            // Обновляем счетчик пар
+            document.getElementById('weekLessonsCount').innerHTML = schedule.length + ' пар';
+        }
+
+        function addLessonAt(day, time) {
+            document.getElementById('lessonDay').value = day;
+            document.getElementById('lessonTime').value = time;
+            showAddLessonModal();
+        }
+
+        function editLesson(day, time) {
+            const schedule = state.weekSystem === 'one_week' ? 
+                [...state.schedule.numerator, ...state.schedule.denominator] : 
+                state.schedule[state.currentWeek];
+            const lesson = schedule.find(l => l.day === day && l.time === time);
+            
+            if (lesson) {
+                document.getElementById('lessonDay').value = day;
+                document.getElementById('lessonTime').value = time;
+                document.getElementById('lessonSubject').value = lesson.subject;
+                document.getElementById('lessonRoom').value = lesson.room;
+                document.getElementById('lessonTeacher').value = lesson.teacher;
+                showAddLessonModal();
+            }
+        }
+
+        // ==================== МИНИ-КАЛЕНДАРЬ ====================
+        function renderMiniCalendar() {
+            const today = new Date();
+            const currentMonth = today.getMonth();
+            const currentYear = today.getFullYear();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            let calendarHtml = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(currentYear, currentMonth, d);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayName = date.toLocaleDateString('ru-RU', { weekday: 'long' });
+                
+                const schedule = state.weekSystem === 'one_week' ? 
+                    [...state.schedule.numerator, ...state.schedule.denominator] : 
+                    state.schedule[state.currentWeek];
+                const hasLessons = schedule.some(l => l.day === dayName);
+                
+                const isToday = d === today.getDate();
+                
+                calendarHtml += `<div class="mini-calendar-day ${hasLessons ? 'has-lessons' : ''} ${isToday ? 'today' : ''}">${d}</div>`;
+            }
+            document.getElementById('miniCalendar').innerHTML = calendarHtml;
+        }
+
+        // ==================== ЗАДАЧИ ====================
+        function renderTasks() {
+            let filteredTasks = state.deadlines.filter(d => !d.completed);
+            
+            if (state.currentFilter === 'today') {
+                const today = new Date().toISOString().split('T')[0];
+                filteredTasks = filteredTasks.filter(d => d.date === today);
+            } else if (state.currentFilter === 'week') {
+                const weekEnd = new Date();
+                weekEnd.setDate(weekEnd.getDate() + 7);
+                filteredTasks = filteredTasks.filter(d => new Date(d.date) <= weekEnd);
+            } else if (state.currentFilter === 'high') {
+                filteredTasks = filteredTasks.filter(d => d.priority === 'high');
+            }
+            
+            let tasksHtml = '';
+            if (filteredTasks.length === 0) {
+                tasksHtml = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Задач нет</p></div>';
+            } else {
+                filteredTasks.forEach(task => {
+                    const daysLeft = Math.ceil((new Date(task.date) - new Date()) / (1000 * 60 * 60 * 24));
+                    const priorityClass = `priority-${task.priority}`;
+                    
+                    tasksHtml += `
+                        <div class="task-item">
+                            <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
+                                 onclick="toggleTask(${task.id})">
+                                ${task.completed ? '✓' : ''}
+                            </div>
+                            <div class="task-content">
+                                <div class="task-title">${task.subject} · ${task.task}</div>
+                                <div class="task-meta">
+                                    <span class="${priorityClass}">● ${task.priority}</span>
+                                    <span><i class="far fa-calendar"></i> ${new Date(task.date).toLocaleDateString('ru-RU')}</span>
+                                    <span>${daysLeft} дн.</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('tasksList').innerHTML = tasksHtml;
+            document.getElementById('tasksCount').innerHTML = filteredTasks.length;
+            document.getElementById('statTasks').innerHTML = filteredTasks.length;
+            document.getElementById('profileTasks').innerHTML = filteredTasks.length;
+            document.getElementById('weekTasks').innerHTML = filteredTasks.length;
+        }
+
+        function toggleTask(taskId) {
+            const task = state.deadlines.find(d => d.id === taskId);
+            if (task) {
+                task.completed = !task.completed;
+                renderTasks();
+            }
+        }
+
+        function filterTasks(filter) {
+            state.currentFilter = filter;
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+                if (chip.textContent.includes(filter === 'all' ? 'Все' : 
+                    filter === 'today' ? 'Сегодня' : 
+                    filter === 'week' ? 'Неделя' : 'Высокий')) {
+                    chip.classList.add('active');
+                }
+            });
+            renderTasks();
+        }
+
+        // ==================== ГРУППЫ ====================
+        function renderGroups() {
+            let groupsHtml = '';
+            if (state.groups.length === 0) {
+                groupsHtml = '<div class="empty-state"><i class="fas fa-users"></i><p>Нет групп</p></div>';
+            } else {
+                state.groups.forEach(group => {
+                    groupsHtml += `
+                        <div class="group-card">
+                            <div class="group-avatar">
+                                <span>${group.name.substring(0, 2)}</span>
+                            </div>
+                            <div class="group-info">
+                                <div class="group-name">${group.name}</div>
+                                <div class="group-meta">${group.members} учеников · ${group.points} очков</div>
+                            </div>
+                            <div class="group-points">${group.role === 'owner' ? '👑' : '👤'}</div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('myGroupsList').innerHTML = groupsHtml;
+            document.getElementById('statGroups').innerHTML = state.groups.length;
+
+            let leaderboardHtml = '';
+            if (state.leaderboard.length === 0) {
+                leaderboardHtml = '<div class="empty-state"><i class="fas fa-trophy"></i><p>Нет данных</p></div>';
+            } else {
+                state.leaderboard.forEach((item, index) => {
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                    leaderboardHtml += `
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank">${index + 1}</div>
+                            <div class="leaderboard-avatar" style="background: linear-gradient(135deg, ${getUserColor(item.name)}, ${getUserColor(item.name + '2')});">
+                                <span>${item.avatar}</span>
+                            </div>
+                            <div class="leaderboard-info">
+                                <div class="leaderboard-name">${item.name}</div>
+                                <div class="leaderboard-points">${item.points} очков</div>
+                            </div>
+                            <div class="leaderboard-medal">${medal}</div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('leaderboardList').innerHTML = leaderboardHtml;
+        }
+
+        // ==================== ПРОФИЛЬ ====================
+        function renderProfile() {
+            const initials = getUserInitials(state.user.name);
+            const color = getUserColor(userId);
+            
+            document.getElementById('userAvatar').style.background = `linear-gradient(135deg, ${color}, ${color}dd)`;
+            document.getElementById('avatarInitials').textContent = initials;
+            
+            document.getElementById('profileAvatar').style.background = `linear-gradient(135deg, ${color}, ${color}dd)`;
+            document.getElementById('profileInitials').textContent = initials;
+            
+            document.getElementById('profileName').textContent = state.user.name;
+            document.getElementById('profileGroup').textContent = `Группа: ${state.user.group}`;
+            
+            const expPercent = (state.user.experience / state.user.nextLevelExp) * 100;
+            document.getElementById('profileLevel').textContent = `Уровень ${state.user.level} · ${state.user.experience}/${state.user.nextLevelExp} опыта`;
+            document.getElementById('expProgress').style.width = expPercent + '%';
+            
+            const totalPairs = state.schedule.numerator.length + state.schedule.denominator.length;
+            document.getElementById('profilePairs').textContent = totalPairs;
+            document.getElementById('profileTasks').textContent = state.deadlines.filter(d => !d.completed).length;
+            document.getElementById('profileDays').textContent = '15';
+            document.getElementById('profileLevel2').textContent = state.user.level;
+            
+            document.getElementById('statPairs').textContent = totalPairs;
+            document.getElementById('statLevel').textContent = state.user.level;
+        }
+
+        // ==================== ГЛАВНАЯ ====================
+        function renderHome() {
+            const hours = new Date().getHours();
+            const greeting = hours < 12 ? 'Доброе утро' : hours < 18 ? 'Добрый день' : 'Добрый вечер';
+            document.getElementById('greeting').textContent = greeting;
+            document.getElementById('userName').textContent = state.user.name;
+            document.getElementById('dateToday').textContent = new Date().toLocaleDateString('ru-RU', { 
+                day: 'numeric', month: 'long' 
+            });
+
+            const weekProgress = Math.round((new Date().getDay() / 7) * 100);
+            document.getElementById('weekProgress').textContent = weekProgress + '%';
+            document.getElementById('weekProgressBar').style.width = weekProgress + '%';
+
+            const currentSchedule = state.weekSystem === 'one_week' ? 
+                [...state.schedule.numerator, ...state.schedule.denominator] : 
+                state.schedule[state.currentWeek];
+            
+            document.getElementById('weekLessons').textContent = currentSchedule.length;
+            document.getElementById('weekPoints').textContent = '245';
+
+            const today = new Date().toLocaleDateString('ru-RU', { weekday: 'long' });
+            const todayLessons = currentSchedule.filter(l => l.day === today);
+            
+            let todayHtml = '';
+            if (todayLessons.length === 0) {
+                todayHtml = '<div class="empty-state"><i class="fas fa-smile"></i><p>Сегодня нет уроков</p></div>';
+            } else {
+                todayLessons.forEach(lesson => {
+                    todayHtml += `
+                        <div class="lesson-item" style="padding: var(--spacing-sm); border-bottom: 1px solid var(--border-light); display: flex; align-items: center;">
+                            <div style="font-weight: 600; color: var(--accent-primary); min-width: 60px;">${lesson.time}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${lesson.subject}</div>
+                                <div style="font-size: 12px; color: var(--text-tertiary);">${lesson.room} · ${lesson.teacher}</div>
+                            </div>
+                            ${state.weekSystem === 'two_week' ? 
+                                `<div style="font-size: 16px;">${state.currentWeek === 'numerator' ? '📗' : '📕'}</div>` : ''
+                            }
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('todayLessons').innerHTML = todayHtml;
+            document.getElementById('todayWeekType').textContent = state.currentWeek === 'numerator' ? 'Числитель' : 'Знаменатель';
+        }
+
+        // ==================== НАВИГАЦИЯ ====================
+        function switchPage(pageNum) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(`page${pageNum}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach((item, index) => {
+                if (index === pageNum - 1) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            if (pageNum === 1) renderHome();
+            if (pageNum === 2) {
+                renderScheduleGrid();
+                renderMiniCalendar();
+            }
+            if (pageNum === 3) renderTasks();
+            if (pageNum === 4) renderGroups();
+            if (pageNum === 5) renderProfile();
+        }
+
+        // ==================== МОДАЛЬНЫЕ ОКНА ====================
+        function showAddLessonModal() {
+            document.getElementById('addLessonModal').classList.add('active');
+        }
+
+        function showAddTaskModal() {
+            document.getElementById('addTaskModal').classList.add('active');
+        }
+
+        function showCreateGroupModal() {
+            document.getElementById('createGroupModal').classList.add('active');
+        }
+
+        function showQuickAddMenu() {
+            document.getElementById('quickAddModal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function addLesson() {
+            const weekType = document.getElementById('lessonWeekType').value;
+            const day = document.getElementById('lessonDay').value;
+            const time = document.getElementById('lessonTime').value;
+            const subject = document.getElementById('lessonSubject').value;
+            const room = document.getElementById('lessonRoom').value;
+            const teacher = document.getElementById('lessonTeacher').value;
+            
+            if (subject && time && room && teacher) {
+                const newLesson = { day, time, subject, room, teacher };
+                
+                if (weekType === 'both') {
+                    state.schedule.numerator.push(newLesson);
+                    state.schedule.denominator.push(newLesson);
+                } else if (weekType === 'numerator') {
+                    state.schedule.numerator.push(newLesson);
+                } else {
+                    state.schedule.denominator.push(newLesson);
+                }
+                
+                closeModal('addLessonModal');
+                renderScheduleGrid();
+                
+                document.getElementById('lessonSubject').value = '';
+                document.getElementById('lessonRoom').value = '';
+                document.getElementById('lessonTeacher').value = '';
+            }
+        }
+
+        function addTask() {
+            const subject = document.getElementById('taskSubject').value;
+            const description = document.getElementById('taskDescription').value;
+            const deadline = document.getElementById('taskDeadline').value;
+            const priority = document.getElementById('taskPriority').value;
+            
+            if (subject && description && deadline) {
+                state.deadlines.push({
+                    id: state.deadlines.length + 1,
+                    subject, 
+                    task: description, 
+                    date: deadline, 
+                    priority, 
+                    completed: false
+                });
+                
+                closeModal('addTaskModal');
+                renderTasks();
+                renderHome();
+                
+                document.getElementById('taskSubject').value = '';
+                document.getElementById('taskDescription').value = '';
+            }
+        }
+
+        function createGroup() {
+            const name = document.getElementById('groupName').value;
+            if (name) {
+                state.groups.push({
+                    id: state.groups.length + 1,
+                    name, 
+                    members: 1, 
+                    points: 0, 
+                    role: 'owner'
+                });
+                closeModal('createGroupModal');
+                renderGroups();
+                document.getElementById('groupName').value = '';
+            }
+        }
+
+        function toggleSetting(setting) {
+            console.log(`Настройка ${setting}: ${document.getElementById(setting).checked}`);
+        }
+
+        function exportSchedule() {
+            tg.showAlert('Расписание экспортировано');
+        }
+
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        window.onload = function() {
+            state.currentWeek = getCurrentWeekType();
+            updateCurrentWeekInfo();
+            
+            renderHome();
+            renderScheduleGrid();
+            renderMiniCalendar();
+            renderTasks();
+            renderGroups();
+            renderProfile();
+            
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) this.classList.remove('active');
+                });
+            });
+        };
+    </script>
+</body>
+</html>
