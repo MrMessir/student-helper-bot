@@ -1,6 +1,5 @@
 // bot/bot.js
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
@@ -8,18 +7,17 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 // ==================== КОНФИГУРАЦИЯ ====================
 const token = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://your-username.github.io/student-bot';
 
 // Создаем бота
-const bot = new TelegramBot(token, { 
+const hasValidToken = Boolean(token && token !== 'YOUR_BOT_TOKEN');
+const bot = new TelegramBot(token, hasValidToken ? {
     polling: {
         interval: 300,
         autoStart: true,
         params: { timeout: 30 }
     }
-});
+} : { polling: false });
 
 // ==================== АДМИН-ПАНЕЛЬ ====================
 const ADMINS = [5772748918];
@@ -37,6 +35,40 @@ let botStats = {
 
 // Состояния пользователей (для выбора университета)
 const userStates = {};
+
+const safeJsonParse = (value, fallback = {}) => {
+    if (typeof value !== 'string') {
+        return value && typeof value === 'object' ? value : fallback;
+    }
+
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
+const getUserSettings = (user, fallback = {}) => {
+    if (!user || !user.settings) return fallback;
+    return safeJsonParse(user.settings, fallback);
+};
+
+const formatDateKey = (date = new Date()) => date.toISOString().split('T')[0];
+
+const csvEscape = (value) => {
+    const text = String(value ?? '');
+    if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+};
+
+const bar = (value, max = 100, width = 10) => {
+    const safe = Math.max(0, Math.min(max, Number(value) || 0));
+    const filled = Math.round((safe / max) * width);
+    return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+};
 
 const updateStats = (command) => {
     botStats.messagesProcessed++;
@@ -102,7 +134,7 @@ const setUserUniversity = async (userId, university) => {
         let settings = {};
         
         if (user && user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         settings.university = {
@@ -129,7 +161,7 @@ const getUserUniversity = async (userId) => {
         
         let settings = {};
         if (user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         return settings.university || null;
@@ -154,6 +186,14 @@ const resetUserData = async (userId) => {
             
             db.run('DELETE FROM notes WHERE user_id = ?', [userId], (err) => {
                 if (err) console.error('Error deleting notes:', err);
+            });
+
+            db.run('DELETE FROM grades WHERE user_id = ?', [userId], (err) => {
+                if (err) console.error('Error deleting grades:', err);
+            });
+
+            db.run('DELETE FROM templates WHERE user_id = ?', [userId], (err) => {
+                if (err) console.error('Error deleting templates:', err);
             });
             
             // Сбрасываем прогресс пользователя
@@ -258,7 +298,7 @@ const getUserWeekSettings = async (userId) => {
         
         let settings = {};
         if (user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         return {
@@ -277,7 +317,7 @@ const updateUserWeekSettings = async (userId, system) => {
         let currentSettings = {};
         
         if (user && user.settings) {
-            currentSettings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            currentSettings = getUserSettings(user, {});
         }
         
         currentSettings.weekSystem = system;
@@ -334,7 +374,7 @@ function initTables() {
             registered_at DATETIME,
             level INTEGER DEFAULT 1,
             experience INTEGER DEFAULT 0,
-            settings TEXT DEFAULT '{"notifications":true,"darkTheme":false,"lessonReminders":true,"deadlineReminders":true,"weekSystem":"two_week"}'
+            settings TEXT DEFAULT '{"notifications":true,"darkTheme":false,"lessonReminders":true,"deadlineReminders":true,"weekSystem":"two_week","reminderTime":"08:00"}'
         )`);
 
         // Таблица расписания
@@ -371,6 +411,24 @@ function initTables() {
             title TEXT,
             content TEXT,
             preview TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Таблица оценок
+        db.run(`CREATE TABLE IF NOT EXISTS grades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            subject TEXT,
+            value REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            type TEXT CHECK(type IN ('lesson', 'deadline')),
+            name TEXT,
+            payload TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
 
@@ -432,7 +490,8 @@ const User = {
                         darkTheme: false,
                         lessonReminders: true,
                         deadlineReminders: true,
-                        weekSystem: WEEK_SYSTEMS.TWO_WEEK
+                        weekSystem: WEEK_SYSTEMS.TWO_WEEK,
+                        reminderTime: '08:00'
                     });
                     
                     db.run(
@@ -716,7 +775,86 @@ const Note = {
     }
 };
 
+const Grade = {
+    findAll: (userId) => {
+        return new Promise((resolve, reject) => {
+            db.all(
+                'SELECT * FROM grades WHERE user_id = ? ORDER BY created_at DESC',
+                [userId],
+                (err, rows) => {
+                    if (err) reject(err);
+                    resolve(rows);
+                }
+            );
+        });
+    },
+
+    create: (userId, subject, value) => {
+        return new Promise((resolve, reject) => {
+            db.run(
+                'INSERT INTO grades (user_id, subject, value) VALUES (?, ?, ?)',
+                [userId, subject, value],
+                function(err) {
+                    if (err) reject(err);
+                    resolve({ id: this.lastID, user_id: userId, subject, value });
+                }
+            );
+        });
+    },
+
+    getAverage: (userId) => {
+        return new Promise((resolve, reject) => {
+            db.get(
+                'SELECT AVG(value) as avgValue, COUNT(*) as count FROM grades WHERE user_id = ?',
+                [userId],
+                (err, row) => {
+                    if (err) reject(err);
+                    resolve({
+                        average: row?.avgValue || 0,
+                        count: row?.count || 0
+                    });
+                }
+            );
+        });
+    }
+};
+
 // ==================== ФУНКЦИИ ДЛЯ ГРУПП ====================
+
+const Template = {
+    create: (userId, type, name, payload) => {
+        return new Promise((resolve, reject) => {
+            db.run(
+                'INSERT INTO templates (user_id, type, name, payload) VALUES (?, ?, ?, ?)',
+                [userId, type, name, JSON.stringify(payload)],
+                function(err) {
+                    if (err) reject(err);
+                    resolve({ id: this.lastID, user_id: userId, type, name, payload });
+                }
+            );
+        });
+    },
+    findAll: (userId, type) => {
+        return new Promise((resolve, reject) => {
+            db.all(
+                'SELECT * FROM templates WHERE user_id = ? AND type = ? ORDER BY created_at DESC',
+                [userId, type],
+                (err, rows) => {
+                    if (err) reject(err);
+                    resolve(rows || []);
+                }
+            );
+        });
+    },
+    findById: (id) => {
+        return new Promise((resolve, reject) => {
+            db.get('SELECT * FROM templates WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                resolve(row || null);
+            });
+        });
+    }
+};
 
 const Group = {
     create: (name, ownerId) => {
@@ -942,6 +1080,12 @@ bot.on('message', (msg) => {
     }
 });
 
+// Внутренний роутер: позволяет использовать bot.emit('text', ...) как переход к обычным onText-обработчикам
+bot.on('text', (msg) => {
+    if (!msg || typeof msg.text !== 'string') return;
+    bot.emit('message', msg);
+});
+
 // ==================== ОБРАБОТЧИКИ ОШИБОК ====================
 bot.on('polling_error', (error) => {
     console.log('⚠️ Polling error:', error.message);
@@ -988,11 +1132,24 @@ process.on('unhandledRejection', (reason, promise) => {
 const mainMenu = {
     reply_markup: {
         keyboard: [
-            ['🤖 Спросить Gemini', '📅 Расписание'],
+            ['📅 Расписание', '📅 На сегодня'],
+            ['📅 На завтра', '📅 Ближайшие (7 дней)'],
             ['📝 Дедлайны', '📚 Домашние задания'],
             ['📒 Заметки', '📊 Оценки'],
-            ['🔔 Напоминания', '👥 Группы'],
-            ['⚙️ Настройки', '📱 Открыть Mini App']
+            ['👥 Группы', '➕ Еще']
+        ],
+        resize_keyboard: true
+    }
+};
+
+const extraMenu = {
+    reply_markup: {
+        keyboard: [
+            ['📚 Домашние задания', '🔔 Напоминания'],
+            ['🎯 Приоритеты дня', '📤 Экспорт данных'],
+            ['📱 Открыть Mini App', '⚙️ Настройки'],
+            ['🧩 Шаблоны', '⏰ Время напоминаний'],
+            ['ℹ️ Подробнее', '🔙 Главное меню']
         ],
         resize_keyboard: true
     }
@@ -1003,13 +1160,6 @@ if (!token || token === 'YOUR_BOT_TOKEN') {
     console.log('⚠️ ВНИМАНИЕ: Токен бота не установлен!');
 } else {
     console.log('✅ Токен бота найден');
-}
-
-if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-    console.log('⚠️ ВНИМАНИЕ: API ключ Gemini не установлен!');
-    console.log('📝 Получите ключ на https://makersuite.google.com/app/apikey');
-} else {
-    console.log('✅ API ключ Gemini найден');
 }
 
 console.log('📱 Mini App URL:', MINI_APP_URL);
@@ -1489,21 +1639,14 @@ async function showMainMenu(chatId, userId, firstName) {
     const weekInfo = await getWeekInfoForUser(userId);
     
     const welcomeMessage = `🎓 Добро пожаловать, ${firstName || 'друг'}! 👋\n\n` +
-        (university ? `🏛️ Твой университет: *${university.name}*\n\n` : '');
+        (university ? `🏛️ ${university.name}\n` : '') +
+        `📅 ${weekInfo.systemText}\n\n`;
     
     bot.sendMessage(
         chatId,
         `${welcomeMessage}` +
-        `Я твой умный помощник для учёбы 🤖\n\n` +
-        `✨ Что я умею:\n` +
-        `• Отвечать на вопросы (Gemini AI)\n` +
-        `• Хранить расписание (${weekInfo.systemText})\n` +
-        `• Отслеживать дедлайны\n` +
-        `• Вести заметки и оценки\n` +
-        `• Создавать группы с турнирной таблицей\n` +
-        `• Напоминать о важном\n` +
-        `• Синхронизироваться с Mini App\n\n` +
-        `📱 Открой Mini App для удобного управления!`,
+        `Быстрые действия доступны кнопками ниже.\n` +
+        `Нужны все функции: нажми *➕ Еще* или *ℹ️ Подробнее*.`,
         mainMenu
     );
 }
@@ -1521,6 +1664,68 @@ bot.on('message', async (msg) => {
     // Проверяем состояние пользователя
     const state = userStates[userId];
     if (!state) return;
+
+    if (text === '❌ Отмена') {
+        delete userStates[userId];
+        bot.sendMessage(chatId, 'Отменено. Возвращаемся в меню.', mainMenu);
+        return;
+    }
+
+    if (state.step === 'waiting_grade_subject') {
+        userStates[userId] = {
+            step: 'waiting_grade_value',
+            gradeSubject: text.trim()
+        };
+        await bot.sendMessage(chatId, 'Введите оценку числом (например, 4.5):');
+        return;
+    }
+
+    if (state.step === 'waiting_grade_value') {
+        const raw = text.replace(',', '.').trim();
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value < 0 || value > 100) {
+            await bot.sendMessage(chatId, '❌ Некорректная оценка. Введите число от 0 до 100.');
+            return;
+        }
+
+        try {
+            await Grade.create(userId, state.gradeSubject || 'Без предмета', value);
+            await bot.sendMessage(chatId, `✅ Оценка сохранена: ${state.gradeSubject} — ${value}`);
+            await User.addExperience(userId, 5);
+        } catch (error) {
+            console.error('Error saving grade:', error);
+            await bot.sendMessage(chatId, '❌ Не удалось сохранить оценку.');
+        } finally {
+            delete userStates[userId];
+        }
+        return;
+    }
+
+    if (state.step === 'waiting_reminder_time') {
+        const value = text.trim();
+        if (!/^\d{2}:\d{2}$/.test(value)) {
+            await bot.sendMessage(chatId, '❌ Формат времени: HH:MM (например, 08:30).');
+            return;
+        }
+        const [h, m] = value.split(':').map(Number);
+        if (h > 23 || m > 59) {
+            await bot.sendMessage(chatId, '❌ Некорректное время. Часы 00-23, минуты 00-59.');
+            return;
+        }
+        try {
+            const user = await User.findByPk(userId);
+            const settings = getUserSettings(user, {});
+            settings.reminderTime = value;
+            await User.update(userId, { settings: JSON.stringify(settings) });
+            await bot.sendMessage(chatId, `✅ Время ежедневного напоминания: ${value}`);
+        } catch (error) {
+            console.error('Error setting reminder time:', error);
+            await bot.sendMessage(chatId, '❌ Не удалось сохранить время напоминания.');
+        } finally {
+            delete userStates[userId];
+        }
+        return;
+    }
     
     if (state.step === 'waiting_city') {
         // Ищем город по запросу
@@ -1779,7 +1984,7 @@ bot.on('callback_query', async (callbackQuery) => {
         let settings = {};
         
         if (user && user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         delete settings.university;
@@ -1852,7 +2057,7 @@ bot.on('web_app_data', async (msg) => {
     const userId = msg.from.id.toString();
     
     try {
-        const data = JSON.parse(msg.web_app_data.data);
+        const data = safeJsonParse(msg.web_app_data.data, {});
         console.log('📦 Данные от Mini App:', data);
         
         if (data.action === 'get_university') {
@@ -1994,7 +2199,7 @@ bot.on('web_app_data', async (msg) => {
             if (user) {
                 let settings = {};
                 if (user.settings) {
-                    settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+                    settings = getUserSettings(user, {});
                 }
                 
                 if (data.setting === 'university') {
@@ -2018,91 +2223,6 @@ bot.on('web_app_data', async (msg) => {
         });
         await bot.sendMessage(chatId, '❌ Ошибка при обработке данных');
     }
-});
-
-// ==================== GEMINI AI ====================
-
-const askGemini = async (message) => {
-    try {
-        console.log(`📤 Запрос к Gemini: "${message.substring(0, 50)}..."`);
-        
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-            return "🔑 API ключ Gemini не настроен. Получите его на https://makersuite.google.com/app/apikey";
-        }
-        
-        const response = await axios.post(GEMINI_URL, {
-            contents: [{
-                parts: [{
-                    text: `Ты - дружелюбный помощник для студента. Отвечай на русском языке, используй эмодзи. Помогай с учебой, объясняй темы, решай задачи. Отвечай кратко (2-3 предложения), но информативно.\n\nВопрос: ${message}\n\nОтвет:`
-                }]
-            }],
-            generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 500
-            }
-        }, {
-            timeout: 30000,
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (response.data && 
-            response.data.candidates && 
-            response.data.candidates[0] && 
-            response.data.candidates[0].content &&
-            response.data.candidates[0].content.parts &&
-            response.data.candidates[0].content.parts[0]) {
-            
-            return response.data.candidates[0].content.parts[0].text;
-        } else {
-            return "😔 Не удалось получить ответ от Gemini";
-        }
-        
-    } catch (error) {
-        console.error('❌ Gemini API Error:', error.message);
-        botStats.errors.push({
-            time: new Date(),
-            message: error.message,
-            type: 'gemini'
-        });
-        return "😔 Ошибка при обращении к Gemini. Попробуй позже.";
-    }
-};
-
-// Команда /ask
-bot.onText(/\/ask (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const question = match[1];
-    updateStats('/ask');
-    
-    try {
-        bot.sendChatAction(chatId, 'typing');
-        const thinking = await bot.sendMessage(chatId, '🤔 Думаю...');
-        
-        const answer = await askGemini(question);
-        
-        await bot.deleteMessage(chatId, thinking.message_id);
-        bot.sendMessage(chatId, answer, { parse_mode: 'Markdown' });
-    } catch (error) {
-        console.error('Error in /ask:', error);
-        bot.sendMessage(chatId, '❌ Ошибка. Попробуй еще раз.');
-    }
-});
-
-// Кнопка "Спросить Gemini"
-bot.onText(/🤖 Спросить Gemini/, (msg) => {
-    const chatId = msg.chat.id;
-    updateStats('🤖 Gemini');
-    
-    bot.sendMessage(
-        chatId,
-        '💭 Задай вопрос Gemini AI:\n\n' +
-        '• По учебе\n• По программированию\n• По математике\n• По физике\n• По английскому',
-        {
-            reply_markup: {
-                force_reply: true
-            }
-        }
-    );
 });
 
 // ==================== РАСПИСАНИЕ ====================
@@ -2456,6 +2576,21 @@ bot.on('callback_query', async (callbackQuery) => {
     });
 });
 
+// ==================== ДОМАШНИЕ ЗАДАНИЯ ====================
+
+bot.onText(/📚 Домашние задания/, (msg) => {
+    const chatId = msg.chat.id;
+    updateStats('📚 Домашние задания');
+
+    bot.sendMessage(
+        chatId,
+        '📚 Домашние задания ведутся в разделе дедлайнов.\nОткрою его сейчас.',
+        { reply_markup: { remove_keyboard: true } }
+    );
+
+    bot.emit('text', { ...msg, text: '📝 Дедлайны' });
+});
+
 // ==================== ДЕДЛАЙНЫ ====================
 
 bot.onText(/📝 Дедлайны/, (msg) => {
@@ -2626,6 +2761,119 @@ bot.onText(/➕ Добавить дедлайн/, (msg) => {
     });
 });
 
+// ==================== ОЦЕНКИ ====================
+
+bot.onText(/📊 Оценки/, (msg) => {
+    const chatId = msg.chat.id;
+    updateStats('📊 Оценки');
+
+    bot.sendMessage(chatId, '📊 *Оценки*', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            keyboard: [
+                ['📋 Все оценки', '📈 Средний балл'],
+                ['📉 Прогресс по предметам'],
+                ['➕ Добавить оценку', '🔙 Главное меню']
+            ],
+            resize_keyboard: true
+        }
+    });
+});
+
+bot.onText(/📉 Прогресс по предметам/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('📉 Прогресс по предметам');
+
+    try {
+        const grades = await Grade.findAll(userId);
+        if (!grades.length) {
+            await bot.sendMessage(chatId, '📉 Пока нет оценок для построения прогресса.');
+            return;
+        }
+
+        const bySubject = new Map();
+        for (const g of grades) {
+            const key = g.subject || 'Без предмета';
+            const prev = bySubject.get(key) || { sum: 0, count: 0 };
+            prev.sum += Number(g.value) || 0;
+            prev.count += 1;
+            bySubject.set(key, prev);
+        }
+
+        const lines = [...bySubject.entries()]
+            .map(([subject, stat]) => {
+                const avg = stat.sum / stat.count;
+                return `${subject}: ${bar(avg, 100, 12)} ${avg.toFixed(1)}`;
+            })
+            .slice(0, 12);
+
+        await bot.sendMessage(
+            chatId,
+            `📉 *Прогресс по предметам*\n\n${lines.join('\n')}\n\nШкала: 0-100`,
+            { parse_mode: 'Markdown' }
+        );
+    } catch (error) {
+        console.error(error);
+        await bot.sendMessage(chatId, '❌ Не удалось построить прогресс.');
+    }
+});
+
+bot.onText(/📋 Все оценки/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('📋 Все оценки');
+
+    try {
+        const grades = await Grade.findAll(userId);
+        if (!grades.length) {
+            bot.sendMessage(chatId, '📋 Оценок пока нет. Добавьте первую!');
+            return;
+        }
+
+        let message = '📋 *Ваши оценки:*\n\n';
+        for (const g of grades.slice(0, 30)) {
+            message += `• ${g.subject}: *${g.value}*\n`;
+        }
+        bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error(error);
+        bot.sendMessage(chatId, '❌ Ошибка загрузки оценок');
+    }
+});
+
+bot.onText(/📈 Средний балл/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('📈 Средний балл');
+
+    try {
+        const { average, count } = await Grade.getAverage(userId);
+        if (!count) {
+            bot.sendMessage(chatId, '📈 Пока нет оценок для расчета среднего балла.');
+            return;
+        }
+
+        bot.sendMessage(
+            chatId,
+            `📈 Средний балл: *${average.toFixed(2)}*\nОценок в базе: ${count}`,
+            { parse_mode: 'Markdown' }
+        );
+    } catch (error) {
+        console.error(error);
+        bot.sendMessage(chatId, '❌ Ошибка расчета среднего балла');
+    }
+});
+
+bot.onText(/➕ Добавить оценку/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('➕ Добавить оценку');
+    userStates[userId] = { step: 'waiting_grade_subject' };
+
+    bot.sendMessage(chatId, '📝 Введите предмет для оценки (например, Математика):');
+});
+
 // ==================== ЗАМЕТКИ ====================
 
 bot.onText(/📒 Заметки/, (msg) => {
@@ -2754,7 +3002,254 @@ bot.onText(/🔍 Поиск/, (msg) => {
     });
 });
 
+// ==================== НАПОМИНАНИЯ ====================
+
+bot.onText(/🔔 Напоминания/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('🔔 Напоминания');
+
+    try {
+        const user = await User.findByPk(userId);
+        const settings = user ? getUserSettings(user, { notifications: true }) : { notifications: true };
+
+        bot.sendMessage(chatId, `🔔 *Управление напоминаниями*\nТекущее время ежедневного дайджеста: ${settings.reminderTime || '08:00'}`, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                keyboard: [
+                    [`🔔 Уведомления: ${settings.notifications ? '✅' : '❌'}`],
+                    ['📝 Активные', '📅 Ближайшие (7 дней)'],
+                    ['⏰ Время напоминаний'],
+                    ['🔙 Главное меню']
+                ],
+                resize_keyboard: true
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        bot.sendMessage(chatId, '❌ Ошибка загрузки настроек напоминаний');
+    }
+});
+
 // ==================== ГРУППЫ ====================
+
+bot.onText(/⏰ Время напоминаний/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('⏰ Время напоминаний');
+    userStates[userId] = { step: 'waiting_reminder_time' };
+    await bot.sendMessage(chatId, 'Введите время в формате HH:MM (например, 08:00).');
+});
+
+bot.onText(/➕ Еще/, (msg) => {
+    const chatId = msg.chat.id;
+    updateStats('➕ Еще');
+    bot.sendMessage(chatId, 'Открываю расширенное меню.', extraMenu);
+});
+
+bot.onText(/ℹ️ Подробнее/, (msg) => {
+    const chatId = msg.chat.id;
+    updateStats('ℹ️ Подробнее');
+    bot.sendMessage(
+        chatId,
+        'ℹ️ Возможности бота:\n' +
+        '• Помощь по учебе\\n' +
+        '• Расписание и пары по неделям\n' +
+        '• Дедлайны и напоминания\n' +
+        '• Заметки, оценки и прогресс\n' +
+        '• Группы и рейтинг\n' +
+        '• Экспорт данных и шаблоны',
+        { reply_markup: extraMenu.reply_markup }
+    );
+});
+
+bot.onText(/🎯 Приоритеты дня/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('🎯 Приоритеты дня');
+    try {
+        const priorities = await getDailyPriorities(userId);
+        if (!priorities.length) {
+            bot.sendMessage(chatId, '🎯 На сегодня приоритетов пока нет. Добавьте пары и дедлайны.');
+            return;
+        }
+        bot.sendMessage(chatId, `🎯 *Топ приоритетов на сегодня:*\n\n${priorities.map(p => `• ${p}`).join('\n')}`, {
+            parse_mode: 'Markdown'
+        });
+    } catch (error) {
+        console.error(error);
+        bot.sendMessage(chatId, '❌ Не удалось сформировать приоритеты дня.');
+    }
+});
+
+bot.onText(/📤 Экспорт данных/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('📤 Экспорт данных');
+
+    try {
+        const [lessons, deadlines, notes, grades] = await Promise.all([
+            Lesson.findAll(userId),
+            Deadline.findAll(userId),
+            Note.findAll(userId),
+            Grade.findAll(userId)
+        ]);
+
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            userId,
+            lessons,
+            deadlines,
+            notes,
+            grades
+        };
+
+        const csvRows = [
+            'type,field1,field2,field3,field4',
+            ...lessons.map(l => ['lesson', l.subject, l.day, l.time, l.room].map(csvEscape).join(',')),
+            ...deadlines.map(d => ['deadline', d.subject, d.task, d.date, d.priority].map(csvEscape).join(',')),
+            ...notes.map(n => ['note', n.title, n.preview, n.created_at, ''].map(csvEscape).join(',')),
+            ...grades.map(g => ['grade', g.subject, g.value, g.created_at, ''].map(csvEscape).join(','))
+        ].join('\n');
+
+        await bot.sendDocument(
+            chatId,
+            Buffer.from(JSON.stringify(payload, null, 2), 'utf8'),
+            {},
+            { filename: `student-helper-export-${userId}.json`, contentType: 'application/json' }
+        );
+
+        await bot.sendDocument(
+            chatId,
+            Buffer.from(csvRows, 'utf8'),
+            {},
+            { filename: `student-helper-export-${userId}.csv`, contentType: 'text/csv' }
+        );
+    } catch (error) {
+        console.error('Export error:', error);
+        bot.sendMessage(chatId, '❌ Не удалось выполнить экспорт.');
+    }
+});
+
+bot.onText(/🧩 Шаблоны/, async (msg) => {
+    const chatId = msg.chat.id;
+    updateStats('🧩 Шаблоны');
+    await bot.sendMessage(chatId, '🧩 *Шаблоны*', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            keyboard: [
+                ['💾 Сохранить пару как шаблон', '💾 Сохранить дедлайн как шаблон'],
+                ['📚 Применить шаблон пары', '📝 Применить шаблон дедлайна'],
+                ['🔙 Главное меню']
+            ],
+            resize_keyboard: true
+        }
+    });
+});
+
+bot.onText(/💾 Сохранить пару как шаблон/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('💾 Шаблон пары');
+    db.get(
+        'SELECT * FROM lessons WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+        [userId],
+        async (err, row) => {
+            if (err || !row) {
+                bot.sendMessage(chatId, '❌ Нет пары для сохранения шаблона.');
+                return;
+            }
+            const name = `${row.subject} ${row.day} ${row.time}`;
+            await Template.create(userId, 'lesson', name, row);
+            bot.sendMessage(chatId, `✅ Шаблон пары сохранен: ${name}`);
+        }
+    );
+});
+
+bot.onText(/💾 Сохранить дедлайн как шаблон/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    updateStats('💾 Шаблон дедлайна');
+    db.get(
+        'SELECT * FROM deadlines WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+        [userId],
+        async (err, row) => {
+            if (err || !row) {
+                bot.sendMessage(chatId, '❌ Нет дедлайна для сохранения шаблона.');
+                return;
+            }
+            const name = `${row.subject}: ${row.task}`;
+            await Template.create(userId, 'deadline', name, row);
+            bot.sendMessage(chatId, `✅ Шаблон дедлайна сохранен: ${name}`);
+        }
+    );
+});
+
+bot.onText(/📚 Применить шаблон пары/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    const templates = await Template.findAll(userId, 'lesson');
+    if (!templates.length) {
+        bot.sendMessage(chatId, '📚 У вас нет шаблонов пар.');
+        return;
+    }
+    const buttons = templates.slice(0, 10).map(t => [{ text: t.name, callback_data: `tpl_apply_lesson_${t.id}` }]);
+    bot.sendMessage(chatId, 'Выберите шаблон пары:', { reply_markup: { inline_keyboard: buttons } });
+});
+
+bot.onText(/📝 Применить шаблон дедлайна/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    const templates = await Template.findAll(userId, 'deadline');
+    if (!templates.length) {
+        bot.sendMessage(chatId, '📝 У вас нет шаблонов дедлайнов.');
+        return;
+    }
+    const buttons = templates.slice(0, 10).map(t => [{ text: t.name, callback_data: `tpl_apply_deadline_${t.id}` }]);
+    bot.sendMessage(chatId, 'Выберите шаблон дедлайна:', { reply_markup: { inline_keyboard: buttons } });
+});
+
+bot.on('callback_query', async (callbackQuery) => {
+    const data = callbackQuery.data || '';
+    if (!data.startsWith('tpl_apply_')) return;
+    const chatId = callbackQuery.message.chat.id;
+    const userId = callbackQuery.from.id.toString();
+    await bot.answerCallbackQuery(callbackQuery.id);
+
+    if (data.startsWith('tpl_apply_lesson_')) {
+        const id = Number(data.replace('tpl_apply_lesson_', ''));
+        const tpl = await Template.findById(id);
+        if (!tpl || tpl.user_id !== userId) return;
+        const lesson = safeJsonParse(tpl.payload, {});
+        await Lesson.create({
+            user_id: userId,
+            date: lesson.date || formatDateKey(),
+            day: lesson.day || new Date().toLocaleDateString('ru-RU', { weekday: 'long' }),
+            time: lesson.time || '09:00',
+            subject: lesson.subject || 'Предмет',
+            room: lesson.room || '',
+            teacher: lesson.teacher || '',
+            week_type: lesson.week_type || 'both'
+        });
+        await bot.sendMessage(chatId, '✅ Пара добавлена из шаблона.');
+        return;
+    }
+
+    if (data.startsWith('tpl_apply_deadline_')) {
+        const id = Number(data.replace('tpl_apply_deadline_', ''));
+        const tpl = await Template.findById(id);
+        if (!tpl || tpl.user_id !== userId) return;
+        const deadline = safeJsonParse(tpl.payload, {});
+        await Deadline.create({
+            user_id: userId,
+            subject: deadline.subject || 'Предмет',
+            task: deadline.task || 'Задача',
+            date: deadline.date || formatDateKey(),
+            priority: deadline.priority || 'medium'
+        });
+        await bot.sendMessage(chatId, '✅ Дедлайн добавлен из шаблона.');
+    }
+});
 
 bot.onText(/👥 Группы/, async (msg) => {
     const chatId = msg.chat.id;
@@ -3301,7 +3796,7 @@ bot.onText(/⚙️ Настройки/, async (msg) => {
         const user = await User.findByPk(userId);
         let settings = {};
         if (user && user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         const menu = {
@@ -3309,6 +3804,8 @@ bot.onText(/⚙️ Настройки/, async (msg) => {
                 keyboard: [
                     ['👤 Профиль', '🏛️ Мой университет'],
                     ['📝 Изменить группу', `🔔 Уведомления: ${settings.notifications ? '✅' : '❌'}`],
+                    ['⏰ Время напоминаний', '📤 Экспорт данных'],
+                    ['🧩 Шаблоны', '📱 Открыть Mini App'],
                     ['📊 Статистика', '🗑 Очистить данные'],
                     ['🔙 Главное меню']
                 ],
@@ -3445,7 +3942,7 @@ bot.onText(/🔔 Уведомления:/, async (msg) => {
         const user = await User.findByPk(userId);
         let settings = {};
         if (user && user.settings) {
-            settings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+            settings = getUserSettings(user, {});
         }
         
         settings.notifications = !settings.notifications;
@@ -3507,6 +4004,8 @@ bot.onText(/🗑 Очистить данные/, (msg) => {
                 db.run('DELETE FROM lessons WHERE user_id = ?', [userId]);
                 db.run('DELETE FROM deadlines WHERE user_id = ?', [userId]);
                 db.run('DELETE FROM notes WHERE user_id = ?', [userId]);
+                db.run('DELETE FROM grades WHERE user_id = ?', [userId]);
+                db.run('DELETE FROM templates WHERE user_id = ?', [userId]);
                 
                 db.run('UPDATE group_members SET points = 0 WHERE user_id = ?', [userId]);
                 
@@ -3529,8 +4028,35 @@ bot.onText(/🗑 Очистить данные/, (msg) => {
 
 // ==================== АВТОМАТИЧЕСКИЕ ФУНКЦИИ ====================
 
+const getDailyPriorities = async (userId) => {
+    const todayDate = formatDateKey();
+    const dayName = new Date().toLocaleDateString('ru-RU', { weekday: 'long' });
+    const [lessons, deadlines] = await Promise.all([
+        Lesson.findByDay(userId, dayName),
+        Deadline.getUpcoming(userId, 7)
+    ]);
+
+    const items = [];
+    lessons
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+        .slice(0, 2)
+        .forEach(l => items.push(`📚 ${l.subject} в ${l.time}`));
+
+    deadlines
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .slice(0, 2)
+        .forEach(d => {
+            const days = Math.ceil((new Date(d.date) - new Date(todayDate)) / (1000 * 60 * 60 * 24));
+            items.push(`📝 ${d.subject}: ${d.task} (${days <= 0 ? 'сегодня' : `${days} дн.`})`);
+        });
+
+    return items.slice(0, 3);
+};
+
 const morningReminders = async () => {
     try {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         const users = await new Promise((resolve, reject) => {
             db.all('SELECT user_id, settings FROM users', [], (err, rows) => {
                 if (err) reject(err);
@@ -3541,12 +4067,13 @@ const morningReminders = async () => {
         for (const user of users) {
             let settings;
             try {
-                settings = JSON.parse(user.settings);
+                settings = safeJsonParse(user.settings, { notifications: true });
             } catch {
                 settings = { notifications: true };
             }
             
-            if (settings.notifications) {
+            const reminderTime = settings.reminderTime || '08:00';
+            if (settings.notifications && reminderTime === currentTime) {
                 const userId = user.user_id;
                 const today = new Date().toISOString().split('T')[0];
                 const dayName = new Date().toLocaleDateString('ru-RU', { weekday: 'long' });
@@ -3556,9 +4083,13 @@ const morningReminders = async () => {
                 const deadlines = await Deadline.getUpcoming(userId, 7);
                 
                 if (lessons.length > 0 || deadlines.length > 0) {
+                    const priorities = await getDailyPriorities(userId);
                     let message = `🌅 *Доброе утро!*\n${weekInfo.systemText}\n`;
                     if (weekInfo.currentText) {
                         message += `${weekInfo.currentText}\n\n`;
+                    }
+                    if (priorities.length > 0) {
+                        message += `🎯 *Топ-3 на сегодня:*\n${priorities.map(p => `• ${p}`).join('\n')}\n\n`;
                     }
                     
                     if (lessons.length > 0) {
@@ -3613,7 +4144,7 @@ const checkDeadlines = async () => {
             const user = await User.findByPk(userId);
             let settings;
             try {
-                settings = user?.settings ? JSON.parse(user.settings) : { notifications: true };
+                settings = user ? getUserSettings(user, { notifications: true }) : { notifications: true };
             } catch {
                 settings = { notifications: true };
             }
@@ -3657,12 +4188,9 @@ const checkDeadlines = async () => {
 
 setInterval(() => {
     const now = new Date();
-    const hour = now.getHours();
     const minute = now.getMinutes();
     
-    if (hour === 8 && minute === 0) {
-        morningReminders();
-    }
+    morningReminders();
     
     if (minute % 30 === 0) {
         checkDeadlines();
@@ -3706,6 +4234,10 @@ bot.onText(/\/deadlines/, (msg) => {
     bot.emit('text', { ...msg, text: '📝 Активные' });
 });
 
+bot.onText(/\/homework/, (msg) => {
+    bot.emit('text', { ...msg, text: '📚 Домашние задания' });
+});
+
 bot.onText(/\/addlesson/, (msg) => {
     bot.emit('text', { ...msg, text: '➕ Добавить пару' });
 });
@@ -3734,9 +4266,58 @@ bot.onText(/\/stats/, (msg) => {
     bot.emit('text', { ...msg, text: '📊 Статистика' });
 });
 
+bot.onText(/\/grades/, (msg) => {
+    bot.emit('text', { ...msg, text: '📊 Оценки' });
+});
+
+bot.onText(/\/reminders/, (msg) => {
+    bot.emit('text', { ...msg, text: '🔔 Напоминания' });
+});
+
+bot.onText(/\/more/, (msg) => {
+    bot.emit('text', { ...msg, text: '➕ Еще' });
+});
+
+bot.onText(/\/export/, (msg) => {
+    bot.emit('text', { ...msg, text: '📤 Экспорт данных' });
+});
+
+bot.onText(/\/priorities/, (msg) => {
+    bot.emit('text', { ...msg, text: '🎯 Приоритеты дня' });
+});
+
+bot.onText(/\/templates/, (msg) => {
+    bot.emit('text', { ...msg, text: '🧩 Шаблоны' });
+});
+
 bot.onText(/\/myuniversity/, (msg) => {
     bot.emit('text', { ...msg, text: '🏛️ Мой университет' });
 });
+
+let lastBackupDate = '';
+const createDatabaseBackup = () => {
+    try {
+        const today = formatDateKey();
+        if (lastBackupDate === today) return;
+
+        const now = new Date();
+        if (now.getHours() !== 3) return;
+
+        const backupDir = path.join(__dirname, '..', 'data', 'backups');
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+
+        const backupPath = path.join(backupDir, `database-${today}.sqlite`);
+        fs.copyFileSync(DB_PATH, backupPath);
+        lastBackupDate = today;
+        console.log(`💾 Backup created: ${backupPath}`);
+    } catch (error) {
+        console.error('Backup error:', error.message);
+    }
+};
+
+setInterval(createDatabaseBackup, 60 * 60 * 1000);
 
 setInterval(updateUsersCount, 10 * 60 * 1000);
 
@@ -3753,7 +4334,7 @@ try {
     const statsPath = path.join(__dirname, '..', 'data', 'stats.json');
     if (fs.existsSync(statsPath)) {
         const savedStats = fs.readFileSync(statsPath, 'utf8');
-        const oldStats = JSON.parse(savedStats);
+        const oldStats = safeJsonParse(savedStats, {});
         botStats.messagesProcessed = oldStats.messagesProcessed || 0;
         botStats.commandsUsed = oldStats.commandsUsed || {};
         botStats.errors = oldStats.errors || [];
@@ -3767,3 +4348,6 @@ console.log('✅ Бот успешно запущен!');
 console.log('📅 Дата и время:', new Date().toLocaleString('ru-RU'));
 console.log('👑 Администраторы:', ADMINS.join(', '));
 console.log('🤖 Ожидание сообщений...');
+
+
+

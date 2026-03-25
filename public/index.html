@@ -3,23 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🎓 Student Helper</title>
+    <title>Student Helper Mini App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
     <!-- CSS стили -->
     <style>
+        :root {
+            --brand: #0d6efd;
+            --brand-2: #0b5ed7;
+            --bg-soft: #f5f7fb;
+            --text-main: #1a1a1a;
+            --card-shadow: 0 10px 30px rgba(0, 36, 80, 0.07);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
-            background: #f8f9fa;
-            color: #1a1a1a;
+            background: radial-gradient(1200px 500px at 0% -10%, #dbeafe 0%, transparent 50%), radial-gradient(1200px 500px at 100% -10%, #e0f2fe 0%, transparent 45%), var(--bg-soft);
+            color: var(--text-main);
             min-height: 100vh;
             padding-bottom: 80px;
         }
@@ -104,7 +115,7 @@
             background: white;
             border-radius: 20px;
             padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: var(--card-shadow);
             margin-bottom: 16px;
             border: 1px solid #e9ecef;
         }
@@ -842,6 +853,45 @@
         .delete-row-btn:hover {
             background: #bb2d3b;
         }
+        .sync-status {
+            margin-top: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #eef2ff;
+            color: #3730a3;
+        }
+        .sync-status.pending {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+        .sync-status.ok {
+            background: #ecfdf3;
+            color: #166534;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .search-input {
+            flex: 1;
+            border: 1px solid #d0d7e2;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        .import-file {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -852,6 +902,7 @@
             <div class="greeting-text">
                 <h2 id="greeting">Доброе утро, Студент!</h2>
                 <p id="dateToday"></p>
+                <div id="syncStatus" class="sync-status pending">● Черновик</div>
             </div>
         </div>
 
@@ -922,7 +973,14 @@
             <button class="tool-btn" onclick="addTimeRow()">
                 ➕ Добавить время
             </button>
+            <button class="tool-btn" onclick="exportMiniAppData()">
+                📤 Экспорт
+            </button>
+            <button class="tool-btn" onclick="document.getElementById('importFile').click()">
+                📥 Импорт
+            </button>
         </div>
+        <input id="importFile" class="import-file" type="file" accept="application/json" onchange="importMiniAppData(event)">
 
         <!-- Легенда -->
         <div class="legend">
@@ -962,6 +1020,9 @@
     <!-- Страница 3: Задачи -->
     <div class="page" id="page3">
         <h1>📝 Задачи</h1>
+        <div class="search-row">
+            <input id="taskSearchInput" class="search-input" placeholder="Поиск по задачам" oninput="updateTasksList()">
+        </div>
         
         <div class="filters">
             <div class="filter-chip active" onclick="filterTasks('all')">Все</div>
@@ -1158,6 +1219,88 @@
         // Временные слоты по умолчанию (без воскресенья)
         const defaultTimeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
         const daysOfWeek = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+        const STORAGE_KEY = `student_helper_miniapp_${userId}`;
+        let currentPage = 1;
+        let autosaveTimer = null;
+
+        function setSyncStatus(status = 'pending', text = 'Черновик') {
+            const el = document.getElementById('syncStatus');
+            if (!el) return;
+            el.classList.remove('pending', 'ok');
+            el.classList.add(status);
+            el.textContent = `● ${text}`;
+        }
+
+        function serializeState() {
+            return {
+                user: state.user,
+                schedule: state.schedule,
+                deadlines: state.deadlines,
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        function persistLocalState(statusText = 'Сохранено локально') {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState()));
+            setSyncStatus('ok', statusText);
+        }
+
+        function scheduleAutosave() {
+            setSyncStatus('pending', 'Есть несохранённые');
+            if (autosaveTimer) clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(() => persistLocalState('Автосохранено'), 500);
+        }
+
+        function hydrateLocalState() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return false;
+            try {
+                const parsed = JSON.parse(raw);
+                if (parsed?.user) state.user = { ...state.user, ...parsed.user };
+                if (Array.isArray(parsed?.schedule)) state.schedule = parsed.schedule;
+                if (Array.isArray(parsed?.deadlines)) state.deadlines = parsed.deadlines;
+                setSyncStatus('ok', 'Данные восстановлены');
+                return true;
+            } catch (error) {
+                console.error('Local state parse error:', error);
+                return false;
+            }
+        }
+
+        function runHaptic(type = 'impact') {
+            if (!tg || !tg.HapticFeedback) return;
+            try {
+                if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+                else if (type === 'warning') tg.HapticFeedback.notificationOccurred('warning');
+                else tg.HapticFeedback.impactOccurred('light');
+            } catch (e) {}
+        }
+
+        function updateMainButton() {
+            if (!tg || !tg.MainButton) return;
+            try { tg.MainButton.offClick(saveSchedule); } catch (e) {}
+            try { tg.MainButton.offClick(showAddTaskModal); } catch (e) {}
+            tg.MainButton.hide();
+            if (currentPage === 2) {
+                tg.MainButton.setText('Сохранить расписание');
+                tg.MainButton.onClick(saveSchedule);
+                tg.MainButton.show();
+            } else if (currentPage === 3) {
+                tg.MainButton.setText('Добавить задачу');
+                tg.MainButton.onClick(showAddTaskModal);
+                tg.MainButton.show();
+            }
+        }
+
+        function setupTelegramChrome() {
+            if (!tg) return;
+            try {
+                tg.BackButton.onClick(() => {
+                    if (currentPage !== 1) switchPage(1);
+                });
+            } catch (e) {}
+            updateMainButton();
+        }
 
         // ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С БОТОМ ====================
 
@@ -1170,6 +1313,8 @@
             if (tg) {
                 tg.sendData(message);
                 console.log('📤 Отправлено боту:', message);
+                setSyncStatus('ok', 'Синхронизировано с ботом');
+                runHaptic('success');
             } else {
                 console.log('📦 Тестовый режим:', message);
             }
@@ -1179,11 +1324,15 @@
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 state.user.name = tg.initDataUnsafe.user.first_name || 'Студент';
             }
-            
-            // Загружаем тестовые данные
-            setTimeout(() => {
-                loadTestData();
-            }, 1000);
+
+            const restored = hydrateLocalState();
+            if (!restored) {
+                setTimeout(() => {
+                    loadTestData();
+                }, 300);
+            } else {
+                updateUI();
+            }
         }
 
         function loadTestData() {
@@ -1207,11 +1356,17 @@
             ];
             
             updateUI();
+            persistLocalState('Тестовые данные загружены');
         }
 
         // ==================== ФУНКЦИИ ДЛЯ РАСПИСАНИЯ (ТАБЛИЦА) ====================
 
+        function sortScheduleByTime() {
+            state.schedule.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+        }
+
         function renderSchedule() {
+            sortScheduleByTime();
             const tbody = document.getElementById('scheduleBody');
             let html = '';
 
@@ -1289,6 +1444,8 @@
             } else {
                 cell.classList.remove('filled');
             }
+
+            scheduleAutosave();
         }
 
         function addTimeRow() {
@@ -1316,6 +1473,7 @@
                 });
                 renderSchedule();
                 tg.showAlert(`✅ Время ${newTime} добавлено`);
+                scheduleAutosave();
             } else if (newTime) {
                 tg.showAlert('❌ Неверный формат времени. Используйте ЧЧ:ММ');
             }
@@ -1344,6 +1502,7 @@
                 renderSchedule();
                 closeModal('editTimeModal');
                 tg.showAlert('✅ Время изменено');
+                scheduleAutosave();
             }
         }
 
@@ -1354,6 +1513,7 @@
                     renderSchedule();
                     closeModal('editTimeModal');
                     tg.showAlert('🗑️ Время удалено');
+                    scheduleAutosave();
                 }
             }
         }
@@ -1373,6 +1533,7 @@
             
             // Отправляем боту
             sendToBot('save_schedule', { schedule: state.schedule });
+            persistLocalState('Сохранено');
             
             // Подсчитываем количество заполненных ячеек
             let filledCount = 0;
@@ -1400,12 +1561,14 @@
                 });
                 renderSchedule();
                 tg.showAlert('🗑️ Расписание очищено');
+                scheduleAutosave();
             }
         }
 
         // ==================== НАВИГАЦИЯ ====================
 
         function switchPage(pageNum) {
+            currentPage = pageNum;
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(`page${pageNum}`).classList.add('active');
             
@@ -1421,6 +1584,12 @@
             if (pageNum === 2) renderSchedule();
             if (pageNum === 3) updateTasksList();
             if (pageNum === 4) updateProfile();
+
+            if (tg && tg.BackButton) {
+                if (pageNum === 1) tg.BackButton.hide();
+                else tg.BackButton.show();
+            }
+            updateMainButton();
         }
 
         // ==================== ГЛАВНАЯ СТРАНИЦА ====================
@@ -1510,6 +1679,12 @@
                     d.subject.includes(state.currentFilter)
                 );
             }
+            const searchValue = (document.getElementById('taskSearchInput')?.value || '').toLowerCase().trim();
+            if (searchValue) {
+                filteredTasks = filteredTasks.filter(d =>
+                    `${d.subject} ${d.task}`.toLowerCase().includes(searchValue)
+                );
+            }
             
             filteredTasks.sort((a, b) => new Date(a.date) - new Date(b.date));
             
@@ -1538,6 +1713,7 @@
                                     <span class="${priorityClass}">${priorityEmoji} ${task.priority}</span>
                                     <span>📅 ${new Date(task.date).toLocaleDateString('ru-RU')}</span>
                                     <span style="color: ${daysLeft < 2 ? '#dc3545' : '#868e96'}">${daysText}</span>
+                                    <span>${task.completed ? '✅ выполнено' : '🕒 в работе'}</span>
                                 </div>
                             </div>
                         </div>
@@ -1566,6 +1742,8 @@
                 deadline.completed = true;
                 sendToBot('complete_deadline', { id });
                 updateTasksList();
+                persistLocalState('Дедлайн обновлен');
+                runHaptic('success');
                 tg.showAlert('✅ Задача выполнена! Молодец! 🎉');
             }
         }
@@ -1602,6 +1780,7 @@
             const value = document.getElementById(setting).checked;
             state.user.settings[setting] = value;
             sendToBot('update_settings', { setting, value });
+            persistLocalState('Настройки сохранены');
             tg.showAlert(`⚙️ Настройка обновлена`);
         }
 
@@ -1645,6 +1824,8 @@
                 
                 state.deadlines.push(newDeadline);
                 sendToBot('add_deadline', { deadline: newDeadline });
+                persistLocalState('Задача сохранена');
+                runHaptic('success');
                 
                 // Очистить поля
                 document.getElementById('taskSubject').value = '';
@@ -1660,6 +1841,42 @@
             }
         }
 
+        function exportMiniAppData() {
+            const data = serializeState();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `student-helper-miniapp-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            runHaptic('success');
+            tg.showAlert('✅ Экспорт выполнен');
+        }
+
+        function importMiniAppData(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const parsed = JSON.parse(reader.result);
+                    if (parsed.user) state.user = { ...state.user, ...parsed.user };
+                    if (Array.isArray(parsed.schedule)) state.schedule = parsed.schedule;
+                    if (Array.isArray(parsed.deadlines)) state.deadlines = parsed.deadlines;
+                    updateUI();
+                    persistLocalState('Данные импортированы');
+                    tg.showAlert('✅ Импорт завершен');
+                } catch (error) {
+                    console.error(error);
+                    tg.showAlert('❌ Не удалось импортировать файл');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
         // Обновление всего UI
         function updateUI() {
             updateHomePage();
@@ -1670,7 +1887,9 @@
 
         // Инициализация
         window.onload = function() {
+            setupTelegramChrome();
             loadUserData();
+            switchPage(1);
             
             // Закрытие модальных окон по клику вне
             document.querySelectorAll('.modal').forEach(modal => {
@@ -1680,8 +1899,22 @@
                     }
                 });
             });
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                    e.preventDefault();
+                    if (currentPage === 2) saveSchedule();
+                }
+            });
+
+            window.addEventListener('beforeunload', () => persistLocalState('Сохранено'));
         };
     </script>
 </body>
 </html>
+
+
+
+
+
 
